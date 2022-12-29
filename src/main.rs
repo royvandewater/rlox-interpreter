@@ -1,11 +1,13 @@
 #[macro_use]
 extern crate lazy_static;
 
+mod ast_printer;
+mod expr;
 mod tokens;
 
 use std::{env, fs, io, process};
 
-use tokens::Tokens;
+use tokens::{Literal, Token, TokenType, Tokens};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -51,5 +53,25 @@ fn run(contents: String) -> Result<(), Vec<String>> {
         println!("token: {:?}", token);
     }
 
+    print_expr();
+
     Ok(())
+}
+
+fn print_expr() {
+    // let expression = expr::Binary::new(
+    //     expr::Unary::new(
+    //         Token::new(TokenType::Minus, "-".to_string(), Literal::None, 1),
+    //         expr::Literal(Literal::Number(123.0)),
+    //     ),
+    //     Token::new(TokenType::Star, "*".to_string(), Literal::None, 1),
+    //     expr::Grouping::new(expr::Literal(Literal::Number(45.67))),
+    // );
+    let expression = expr::Expr::Binary(expr::Binary::new(
+        expr::Expr::Literal(expr::Literal::new(Literal::Number(123.0))),
+        Token::new(TokenType::Star, "*".to_string(), Literal::None, 1),
+        expr::Expr::Literal(expr::Literal::new(Literal::Number(45.67))),
+    ));
+
+    println!("{}", ast_printer::print(expression))
 }

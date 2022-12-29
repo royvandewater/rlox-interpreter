@@ -63,10 +63,26 @@ pub enum Literal {
 
 #[derive(Clone, Debug)]
 pub struct Token {
-    token_type: TokenType,
-    lexeme: String,
-    literal: Literal,
-    line_number: usize,
+    pub token_type: TokenType,
+    pub lexeme: String,
+    pub literal: Literal,
+    pub line_number: usize,
+}
+
+impl Token {
+    pub fn new(
+        token_type: TokenType,
+        lexeme: String,
+        literal: Literal,
+        line_number: usize,
+    ) -> Token {
+        Token {
+            token_type,
+            lexeme,
+            literal,
+            line_number,
+        }
+    }
 }
 
 impl Display for Token {
