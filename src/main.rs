@@ -59,19 +59,22 @@ fn run(contents: String) -> Result<(), Vec<String>> {
 }
 
 fn print_expr() {
-    // let expression = expr::Binary::new(
-    //     expr::Unary::new(
-    //         Token::new(TokenType::Minus, "-".to_string(), Literal::None, 1),
-    //         expr::Literal(Literal::Number(123.0)),
-    //     ),
-    //     Token::new(TokenType::Star, "*".to_string(), Literal::None, 1),
-    //     expr::Grouping::new(expr::Literal(Literal::Number(45.67))),
-    // );
-    let expression = expr::Expr::Binary(expr::Binary::new(
-        expr::Expr::Literal(expr::Literal::new(Literal::Number(123.0))),
+    let expression = expr::Expr::Binary(expr::BinaryExpr::new(
+        expr::Expr::Unary(expr::UnaryExpr::new(
+            Token::new(TokenType::Minus, "-".to_string(), Literal::None, 1),
+            expr::Expr::Literal(expr::LiteralExpr::new(Literal::Number(123.0))),
+        )),
         Token::new(TokenType::Star, "*".to_string(), Literal::None, 1),
-        expr::Expr::Literal(expr::Literal::new(Literal::Number(45.67))),
+        expr::Expr::Grouping(expr::GroupingExpr::new(expr::Expr::Literal(
+            expr::LiteralExpr::new(Literal::Number(45.67)),
+        ))),
     ));
+
+    // let expression = expr::Expr::Binary(expr::BinaryExpr::new(
+    //     expr::Expr::Literal(expr::LiteralExpr::new(Literal::Number(123.0))),
+    //     Token::new(TokenType::Star, "*".to_string(), Literal::None, 1),
+    //     expr::Expr::Literal(expr::LiteralExpr::new(Literal::Number(45.67))),
+    // ));
 
     println!("{}", ast_printer::print(expression))
 }
