@@ -4,7 +4,7 @@ use std::{fmt::Display, slice::Iter, str::FromStr};
 
 use self::scanner::Scanner;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TokenType {
     LeftParen,
     RightParen,
@@ -56,9 +56,10 @@ pub enum TokenType {
 
 #[derive(Clone, Debug)]
 pub enum Literal {
-    None,
+    Nil,
     Number(f64),
     String(String),
+    Bolean(bool),
 }
 
 #[derive(Clone, Debug)]

@@ -7,7 +7,7 @@ mod tokens;
 
 use std::{env, fs, io, process};
 
-use tokens::{Literal, Token, TokenType, Tokens};
+use tokens::Tokens;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -48,33 +48,9 @@ fn run_prompt() {
 
 fn run(contents: String) -> Result<(), Vec<String>> {
     let tokens: Tokens = contents.parse()?;
+    let expression: expr::Expr = tokens.try_into()?;
 
-    for token in tokens.iter() {
-        println!("token: {:?}", token);
-    }
-
-    print_expr();
+    println!("{}", ast_printer::print(expression));
 
     Ok(())
-}
-
-fn print_expr() {
-    let expression = expr::Expr::Binary(expr::BinaryExpr::new(
-        expr::Expr::Unary(expr::UnaryExpr::new(
-            Token::new(TokenType::Minus, "-".to_string(), Literal::None, 1),
-            expr::Expr::Literal(expr::LiteralExpr::new(Literal::Number(123.0))),
-        )),
-        Token::new(TokenType::Star, "*".to_string(), Literal::None, 1),
-        expr::Expr::Grouping(expr::GroupingExpr::new(expr::Expr::Literal(
-            expr::LiteralExpr::new(Literal::Number(45.67)),
-        ))),
-    ));
-
-    // let expression = expr::Expr::Binary(expr::BinaryExpr::new(
-    //     expr::Expr::Literal(expr::LiteralExpr::new(Literal::Number(123.0))),
-    //     Token::new(TokenType::Star, "*".to_string(), Literal::None, 1),
-    //     expr::Expr::Literal(expr::LiteralExpr::new(Literal::Number(45.67))),
-    // ));
-
-    println!("{}", ast_printer::print(expression))
 }

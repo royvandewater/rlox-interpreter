@@ -55,7 +55,7 @@ impl Scanner {
             }
         }
 
-        tokens.push(self.new_token(TokenType::Eof, Literal::None));
+        tokens.push(self.new_token(TokenType::Eof, Literal::Nil));
 
         match errors.len() {
             0 => Ok(tokens),
@@ -65,43 +65,43 @@ impl Scanner {
 
     fn scan_token(&mut self) -> Result<Option<Token>, String> {
         match self.advance() {
-            '(' => Ok(Some(self.new_token(TokenType::LeftParen, Literal::None))),
-            ')' => Ok(Some(self.new_token(TokenType::RightParen, Literal::None))),
-            '{' => Ok(Some(self.new_token(TokenType::LeftBrace, Literal::None))),
-            '}' => Ok(Some(self.new_token(TokenType::RightBrace, Literal::None))),
-            ',' => Ok(Some(self.new_token(TokenType::Comma, Literal::None))),
-            '.' => Ok(Some(self.new_token(TokenType::Dot, Literal::None))),
-            '-' => Ok(Some(self.new_token(TokenType::Minus, Literal::None))),
-            '+' => Ok(Some(self.new_token(TokenType::Plus, Literal::None))),
-            ';' => Ok(Some(self.new_token(TokenType::Semicolon, Literal::None))),
-            '*' => Ok(Some(self.new_token(TokenType::Star, Literal::None))),
+            '(' => Ok(Some(self.new_token(TokenType::LeftParen, Literal::Nil))),
+            ')' => Ok(Some(self.new_token(TokenType::RightParen, Literal::Nil))),
+            '{' => Ok(Some(self.new_token(TokenType::LeftBrace, Literal::Nil))),
+            '}' => Ok(Some(self.new_token(TokenType::RightBrace, Literal::Nil))),
+            ',' => Ok(Some(self.new_token(TokenType::Comma, Literal::Nil))),
+            '.' => Ok(Some(self.new_token(TokenType::Dot, Literal::Nil))),
+            '-' => Ok(Some(self.new_token(TokenType::Minus, Literal::Nil))),
+            '+' => Ok(Some(self.new_token(TokenType::Plus, Literal::Nil))),
+            ';' => Ok(Some(self.new_token(TokenType::Semicolon, Literal::Nil))),
+            '*' => Ok(Some(self.new_token(TokenType::Star, Literal::Nil))),
             '!' => match self.peek() {
                 '=' => {
                     self.advance();
-                    Ok(Some(self.new_token(TokenType::BangEqual, Literal::None)))
+                    Ok(Some(self.new_token(TokenType::BangEqual, Literal::Nil)))
                 }
-                _ => Ok(Some(self.new_token(TokenType::Bang, Literal::None))),
+                _ => Ok(Some(self.new_token(TokenType::Bang, Literal::Nil))),
             },
             '=' => match self.peek() {
                 '=' => {
                     self.advance();
-                    Ok(Some(self.new_token(TokenType::EqualEqual, Literal::None)))
+                    Ok(Some(self.new_token(TokenType::EqualEqual, Literal::Nil)))
                 }
-                _ => Ok(Some(self.new_token(TokenType::Equal, Literal::None))),
+                _ => Ok(Some(self.new_token(TokenType::Equal, Literal::Nil))),
             },
             '<' => match self.peek() {
                 '=' => {
                     self.advance();
-                    Ok(Some(self.new_token(TokenType::LessEqual, Literal::None)))
+                    Ok(Some(self.new_token(TokenType::LessEqual, Literal::Nil)))
                 }
-                _ => Ok(Some(self.new_token(TokenType::Less, Literal::None))),
+                _ => Ok(Some(self.new_token(TokenType::Less, Literal::Nil))),
             },
             '>' => match self.peek() {
                 '=' => {
                     self.advance();
-                    Ok(Some(self.new_token(TokenType::GreaterEqual, Literal::None)))
+                    Ok(Some(self.new_token(TokenType::GreaterEqual, Literal::Nil)))
                 }
-                _ => Ok(Some(self.new_token(TokenType::Greater, Literal::None))),
+                _ => Ok(Some(self.new_token(TokenType::Greater, Literal::Nil))),
             },
             '/' => match self.peek() {
                 '/' => {
@@ -111,7 +111,7 @@ impl Scanner {
                     }
                     Ok(None)
                 }
-                _ => Ok(Some(self.new_token(TokenType::Slash, Literal::None))),
+                _ => Ok(Some(self.new_token(TokenType::Slash, Literal::Nil))),
             },
             ' ' => Ok(None),
             '\r' => Ok(None),
@@ -182,8 +182,8 @@ impl Scanner {
 
         let text: &str = &self.source[self.start..self.current];
         let token = match KEYWORDS.get(text) {
-            Some(&token_type) => self.new_token(token_type, Literal::None),
-            None => self.new_token(TokenType::Identifier, Literal::None),
+            Some(&token_type) => self.new_token(token_type, Literal::Nil),
+            None => self.new_token(TokenType::Identifier, Literal::Nil),
         };
 
         Ok(Some(token))
@@ -196,7 +196,7 @@ impl Scanner {
     }
 
     fn peek(&self) -> char {
-        self.source.chars().nth(self.current).unwrap()
+        self.source.chars().nth(self.current).unwrap_or('\0')
     }
 
     fn peek_next(&self) -> char {
@@ -206,12 +206,7 @@ impl Scanner {
     fn new_token(&self, token_type: TokenType, literal: Literal) -> Token {
         let text = &self.source[self.start..self.current];
 
-        Token {
-            token_type,
-            lexeme: text.to_string(),
-            literal,
-            line_number: self.line,
-        }
+        Token::new(token_type, text.to_string(), literal, self.line)
     }
 
     fn is_at_end(&self) -> bool {

@@ -32,9 +32,10 @@ impl Visitor<String> for AstPrinter {
 
     fn visit_literal(&self, expr: &LiteralExpr) -> String {
         match &expr.value {
-            crate::tokens::Literal::None => "nil".to_string(),
+            crate::tokens::Literal::Nil => "nil".to_string(),
             crate::tokens::Literal::Number(n) => format!("{}", n),
             crate::tokens::Literal::String(s) => format!("{}", s),
+            crate::tokens::Literal::Bolean(b) => format!("{}", b),
         }
     }
 
