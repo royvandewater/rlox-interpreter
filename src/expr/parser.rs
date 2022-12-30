@@ -1,10 +1,9 @@
+use std::collections::VecDeque;
+
 use super::*;
 use crate::tokens::{TokenType, Tokens};
 
-pub(super) struct Parser {
-    current: usize,
-    tokens: Vec<Token>,
-}
+pub(super) struct Parser(VecDeque<Token>);
 
 impl Parser {
     pub(crate) fn parse(&mut self) -> Result<Expr, Vec<String>> {
@@ -19,7 +18,7 @@ impl Parser {
         let mut expression = self.comparison()?;
 
         while self.check(&[TokenType::BangEqual, TokenType::EqualEqual]) {
-            let operator = self.advance().clone();
+            let operator = self.advance()?;
             let right = self.comparison()?;
 
             expression = Expr::Binary(BinaryExpr::new(expression, operator, right));
@@ -37,7 +36,7 @@ impl Parser {
             TokenType::Less,
             TokenType::LessEqual,
         ]) {
-            let operator = self.advance().clone();
+            let operator = self.advance()?;
             let right = self.term()?;
 
             expression = Expr::Binary(BinaryExpr::new(expression, operator, right));
@@ -50,7 +49,7 @@ impl Parser {
         let mut expression = self.factor()?;
 
         while self.check(&[TokenType::Plus, TokenType::Minus]) {
-            let operator = self.advance().clone();
+            let operator = self.advance()?;
             let right = self.factor()?;
 
             expression = Expr::Binary(BinaryExpr::new(expression, operator, right));
@@ -63,7 +62,7 @@ impl Parser {
         let mut expression = self.unary()?;
 
         while self.check(&[TokenType::Slash, TokenType::Star]) {
-            let operator = self.advance().clone();
+            let operator = self.advance()?;
             let right = self.unary()?;
 
             expression = Expr::Binary(BinaryExpr::new(expression, operator, right));
@@ -77,14 +76,14 @@ impl Parser {
             return self.primary();
         }
 
-        let operator = self.advance().clone();
+        let operator = self.advance()?;
         let right = self.unary()?;
 
         Ok(Expr::Unary(UnaryExpr::new(operator, right)))
     }
 
     fn primary(&mut self) -> Result<Expr, Vec<String>> {
-        let next_token = self.advance();
+        let next_token = self.advance()?;
 
         let expression = match next_token.token_type {
             TokenType::False => Expr::Literal(LiteralExpr::new(Literal::Bolean(false))),
@@ -107,43 +106,41 @@ impl Parser {
     }
 
     fn check(&self, token_types: &[TokenType]) -> bool {
-        if self.is_at_end() {
-            return false;
-        };
-
-        let token = self.peek();
-
-        token_types.iter().any(|&t| t == token.token_type)
+        match self.peek() {
+            None => false,
+            Some(token) => token_types.iter().any(|&t| t == token.token_type),
+        }
     }
 
-    fn peek(&self) -> &Token {
-        self.tokens.get(self.current).unwrap()
+    fn peek(&self) -> Option<&Token> {
+        match self.0.front() {
+            None => None,
+            Some(eof) if TokenType::Eof == eof.token_type => None,
+            Some(token) => Some(token),
+        }
     }
 
-    fn advance(&mut self) -> &Token {
-        let val = self.tokens.get(self.current).unwrap();
-
-        self.current += 1;
-
-        return val;
-    }
-
-    fn is_at_end(&self) -> bool {
-        match self.peek().token_type {
-            TokenType::Eof => true,
-            _ => false,
+    fn advance(&mut self) -> Result<Token, Vec<String>> {
+        match self.0.pop_front() {
+            None => Err(Vec::from([
+                "Tried to pop_front on empty dequeue".to_string()
+            ])),
+            Some(eof) if TokenType::Eof == eof.token_type => Err(Vec::from([
+                "Tried to pop_front with only EOF left".to_string(),
+            ])),
+            Some(token) => Ok(token),
         }
     }
 
     fn consume(&mut self, token_type: TokenType, message: &str) -> Result<(), Vec<String>> {
         match self.check(&[token_type]) {
             true => {
-                self.advance();
+                self.advance()?;
                 Ok(())
             }
             false => Err(Vec::from([format!(
                 "Could not consume: {}. \"{}\"",
-                self.peek(),
+                self.peek().unwrap(),
                 message
             )])),
         }
@@ -152,9 +149,6 @@ impl Parser {
 
 impl From<Tokens> for Parser {
     fn from(tokens: Tokens) -> Self {
-        Parser {
-            current: 0,
-            tokens: tokens.iter().cloned().collect(),
-        }
+        Parser(tokens.iter().cloned().collect())
     }
 }
