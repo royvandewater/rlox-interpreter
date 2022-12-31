@@ -86,8 +86,8 @@ impl Parser {
         let next_token = self.advance()?;
 
         let expression = match next_token.token_type {
-            TokenType::False => Expr::Literal(LiteralExpr::new(Literal::Bolean(false))),
-            TokenType::True => Expr::Literal(LiteralExpr::new(Literal::Bolean(true))),
+            TokenType::False => Expr::Literal(LiteralExpr::new(Literal::Boolean(false))),
+            TokenType::True => Expr::Literal(LiteralExpr::new(Literal::Boolean(true))),
             TokenType::Nil => Expr::Literal(LiteralExpr::new(Literal::Nil)),
             TokenType::Number => Expr::Literal(LiteralExpr::new(next_token.literal.clone())),
             TokenType::String => Expr::Literal(LiteralExpr::new(next_token.literal.clone())),

@@ -3,10 +3,12 @@ extern crate lazy_static;
 
 mod ast_printer;
 mod expr;
+mod interpreter;
 mod tokens;
 
 use std::{env, fs, io, process};
 
+use interpreter::Interpreter;
 use tokens::Tokens;
 
 fn main() {
@@ -31,26 +33,29 @@ fn main() {
 }
 
 fn run_file(filename: &String) -> Result<(), Vec<String>> {
+    let interpreter = Interpreter::new();
     let contents = fs::read_to_string(filename)
         .map_err(|e| Vec::from([format!("Failed to read file '{}': '{}'", filename, e)]))?;
 
-    return run(contents);
+    return run(&interpreter, contents);
 }
 
 fn run_prompt() {
+    let interpreter = Interpreter::new();
+
     for line in io::stdin().lines() {
-        match run(line.unwrap()) {
+        match run(&interpreter, line.unwrap()) {
             Ok(_) => continue,
             Err(errors) => format!("Error running line: {:?}", errors),
         };
     }
 }
 
-fn run(contents: String) -> Result<(), Vec<String>> {
+fn run(interpreter: &Interpreter, contents: String) -> Result<(), Vec<String>> {
     let tokens: Tokens = contents.parse()?;
     let expression: expr::Expr = tokens.try_into()?;
 
-    println!("{}", ast_printer::print(expression));
+    interpreter.interpret(expression)?;
 
     Ok(())
 }

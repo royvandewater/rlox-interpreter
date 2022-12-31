@@ -54,12 +54,23 @@ pub enum TokenType {
     Eof,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Literal {
     Nil,
     Number(f64),
     String(String),
-    Bolean(bool),
+    Boolean(bool),
+}
+
+impl Display for Literal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Literal::Nil => f.write_str("nil"),
+            Literal::Number(n) => f.write_fmt(format_args!("{}", n)),
+            Literal::String(s) => f.write_str(s.as_str()),
+            Literal::Boolean(b) => f.write_fmt(format_args!("{}", b)),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

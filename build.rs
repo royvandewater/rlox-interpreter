@@ -30,7 +30,7 @@ fn main() -> anyhow::Result<()> {
                 $(define_expr_enum())
             }
 
-            pub(crate) fn walk_expr<T>(visitor: &dyn Visitor<T>, expr: &Expr) -> T {
+            pub(crate) fn walk_expr<T>(visitor: &dyn Visitor<T>, expr: Expr) -> T {
                 match expr {
                     $(define_walk_expr())
                 }
@@ -64,7 +64,7 @@ fn define_visitor_trait() -> Tokens {
         let token_title = &raw_token_name.to_case(Case::Title);
 
         tokens.append(quote! {
-            fn visit_$token_snake(&self, expr: &$(token_title)Expr) -> T;
+            fn visit_$token_snake(&self, expr: $(token_title)Expr) -> T;
         })
     }
 
