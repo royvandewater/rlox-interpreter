@@ -13,6 +13,16 @@ impl Environment {
         self.0.insert(name.to_string(), value);
     }
 
+    pub fn assign(&mut self, name: &str, value: Literal) -> Result<(), String> {
+        match self.0.contains_key(name) {
+            true => {
+                self.0.insert(name.to_string(), value);
+                Ok(())
+            }
+            false => Err(format!("Undefined variable '{}'", name)),
+        }
+    }
+
     pub fn get(&self, name: &str) -> Option<Literal> {
         match self.0.get(name) {
             Some(v) => Some(v.clone()),

@@ -102,6 +102,16 @@ impl expr::Visitor<Result<Literal, Vec<String>>> for Interpreter {
             Some(literal) => Ok(literal),
         }
     }
+
+    fn visit_assign(&mut self, expression: AssignExpr) -> Result<Literal, Vec<String>> {
+        let name = &expression.name.lexeme.to_string();
+        let value = self.evaluate(Expr::Assign(expression))?;
+
+        match self.environment.assign(&name, value.clone()) {
+            Ok(_) => Ok(value),
+            Err(e) => Err(vec![e]),
+        }
+    }
 }
 
 impl stmt::Visitor<Result<(), Vec<String>>> for Interpreter {

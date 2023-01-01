@@ -9,6 +9,7 @@ use genco::{
 type RulesList = [&'static str];
 
 const EXPRESSIONS: &'static RulesList = &[
+    "Assign   : Token name, Expr value",
     "Binary   : Expr left, Token operator, Expr right",
     "Grouping : Expr expression",
     "Literal  : Literal value",

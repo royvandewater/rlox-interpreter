@@ -49,4 +49,8 @@ impl Visitor<String> for AstPrinter {
     fn visit_variable(&mut self, _expr: VariableExpr) -> String {
         todo!()
     }
+
+    fn visit_assign(&mut self, _expr: AssignExpr) -> String {
+        todo!()
+    }
 }
