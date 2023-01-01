@@ -6,42 +6,59 @@ use genco::{
     prelude::{rust::Tokens, *},
 };
 
-const RULES: &'static [&'static str] = &[
+type RulesList = [&'static str];
+
+const EXPRESSIONS: &'static RulesList = &[
     "Binary   : Expr left, Token operator, Expr right",
     "Grouping : Expr expression",
     "Literal  : Literal value",
     "Unary    : Token operator, Expr right",
 ];
 
+const STATEMENTS: &'static RulesList = &[
+    "Expression : Expr expression",
+    "Print      : Expr expression",
+];
+
 fn main() -> anyhow::Result<()> {
+    define_ast("expr", EXPRESSIONS)?;
+    define_ast("stmt", STATEMENTS)?;
+
+    Ok(())
+}
+
+fn define_ast(base: &str, rules: &RulesList) -> anyhow::Result<()> {
     let literal = rust::import("crate::tokens", "Literal");
     let token = rust::import("crate::tokens", "Token");
 
+    let base_snake = &base.to_case(Case::Snake);
+    let base_title = &base.to_case(Case::Title);
+
     let tokens: rust::Tokens = quote! {
-        mod expr_generated {
+        mod $(base_snake)_generated {
             type Literal = super::$literal;
             type Token = super::$token;
 
             pub(crate) trait Visitor<T> {
-                $(define_visitor_trait())
+                $(define_visitor_trait(base_title, base_snake, rules))
             }
 
-            pub(crate) enum Expr {
-                $(define_expr_enum())
+            pub(crate) enum $(base_title) {
+                $(define_enum(base_title, rules))
             }
 
-            pub(crate) fn walk_expr<T>(visitor: &dyn Visitor<T>, expr: Expr) -> T {
-                match expr {
-                    $(define_walk_expr())
+            pub(crate) fn walk_$(base_snake)<T>(visitor: &dyn Visitor<T>, $(base_snake): $(base_title)) -> T {
+                match $(base_snake) {
+                    $(define_walk(base_title, rules))
                 }
             }
 
-            $(define_exprs())
+            $(define_structs(base_title, rules))
         }
     };
 
     let out_dir = env::var_os("OUT_DIR").unwrap();
-    let dest_path = Path::new(&out_dir).join("expr_generated.rs");
+    let dest_path = Path::new(&out_dir).join(format!("{}_generated.rs", base_snake));
     let file = File::create(dest_path)?;
 
     let mut w = fmt::IoWriter::new(file);
@@ -54,41 +71,41 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn define_visitor_trait() -> Tokens {
+fn define_visitor_trait(base_title: &str, base_snake: &str, rules: &RulesList) -> Tokens {
     let mut tokens = Tokens::new();
 
-    for rule in RULES.iter() {
+    for rule in rules.iter() {
         let raw_token_name = rule.split_once(" ").unwrap().0;
 
         let token_snake = &raw_token_name.to_case(Case::Snake);
         let token_title = &raw_token_name.to_case(Case::Title);
 
         tokens.append(quote! {
-            fn visit_$token_snake(&self, expr: $(token_title)Expr) -> T;
+            fn visit_$token_snake(&self, $base_snake: $token_title$base_title) -> T;
         })
     }
 
     return tokens;
 }
 
-fn define_expr_enum() -> Tokens {
+fn define_enum(base_title: &str, rules: &RulesList) -> Tokens {
     let mut tokens = Tokens::new();
 
-    for rule in RULES.iter() {
+    for rule in rules.iter() {
         let title = &rule.split_once(" ").unwrap().0.to_case(Case::Title);
 
         tokens.append(quote! {
-            $title($(title)Expr),
+            $title($title$base_title),
         })
     }
 
     return tokens;
 }
 
-fn define_walk_expr() -> Tokens {
+fn define_walk(base_title: &str, rules: &RulesList) -> Tokens {
     let mut tokens = Tokens::new();
 
-    for rule in RULES.iter() {
+    for rule in rules.iter() {
         let raw_token_name = rule.split_once(" ").unwrap().0;
 
         let var = &raw_token_name.to_case(Case::Snake);
@@ -96,18 +113,18 @@ fn define_walk_expr() -> Tokens {
         let c = &var.chars().next().unwrap().to_string();
 
         tokens.append(quote! {
-            Expr::$class($c) => visitor.visit_$var($c),
+            $(base_title)::$class($c) => visitor.visit_$var($c),
         })
     }
 
     return tokens;
 }
 
-fn define_exprs() -> Tokens {
+fn define_structs(base_title: &str, rules: &RulesList) -> Tokens {
     let mut tokens = Tokens::new();
 
-    for rule in RULES.iter() {
-        tokens.append(define_type(rule));
+    for rule in rules.iter() {
+        tokens.append(define_type(base_title, rule));
     }
 
     return tokens;
@@ -118,20 +135,22 @@ struct Field {
     name: String,
 }
 
-fn define_type(rule: &str) -> Tokens {
+fn define_type(base_title: &str, rule: &str) -> Tokens {
     let (raw_name, raw_rules) = rule.split_once(":").unwrap();
 
-    let class = format!("{}Expr", &raw_name.trim().to_case(Case::Title));
+    let name_title = &raw_name.trim().to_case(Case::Title);
+
+    let class = &format!("{}{}", name_title, base_title);
     let fields: Vec<Field> = raw_rules.split(", ").map(parse_field).collect();
 
     quote! {
-        pub(crate) struct $(&class) {
+        pub(crate) struct $class {
             $(define_struct_fields(&fields))
         }
 
-        impl $(&class) {
-            pub(crate) fn new($(define_constructor_parameters(&fields))) -> $(&class) {
-                $(&class) {
+        impl $class {
+            pub(crate) fn new($(define_constructor_parameters(&fields))) -> $class {
+                $class {
                     $(define_constructor_assignment(&fields))
                 }
             }
