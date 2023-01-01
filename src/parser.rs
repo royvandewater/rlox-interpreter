@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::expr::*;
-use crate::stmt::{Stmt, Stmts, VarStmt};
+use crate::stmt::{ExpressionStmt, PrintStmt, Stmt, Stmts, VarStmt};
 use crate::tokens::{Literal, Token, TokenType, Tokens};
 
 pub(super) struct Parser(VecDeque<Token>);
@@ -40,8 +40,26 @@ impl Parser {
         Ok(Stmt::Var(VarStmt::new(name, initializer)))
     }
 
-    fn statement(&self) -> Result<Stmt, Vec<String>> {
-        todo!()
+    fn statement(&mut self) -> Result<Stmt, Vec<String>> {
+        match self.check(&[TokenType::Print]) {
+            true => {
+                _ = self.advance()?;
+                self.print_statement()
+            }
+            false => self.expression_statement(),
+        }
+    }
+
+    fn print_statement(&mut self) -> Result<Stmt, Vec<String>> {
+        let value = self.expression()?;
+        self.consume(TokenType::Semicolon, "Expect ';' after value.")?;
+        Ok(Stmt::Print(PrintStmt::new(value)))
+    }
+
+    fn expression_statement(&mut self) -> Result<Stmt, Vec<String>> {
+        let expression = self.expression()?;
+        self.consume(TokenType::Semicolon, "Expect ';' after expression.")?;
+        Ok(Stmt::Expression(ExpressionStmt::new(expression)))
     }
 
     fn expression(&mut self) -> Result<Expr, Vec<String>> {
