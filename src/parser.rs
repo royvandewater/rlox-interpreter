@@ -1,13 +1,43 @@
 use std::collections::VecDeque;
 
-use super::*;
-use crate::tokens::{TokenType, Tokens};
+use crate::expr::*;
+use crate::stmt::{Stmt, Stmts, VarStmt};
+use crate::tokens::{Literal, Token, TokenType, Tokens};
 
 pub(super) struct Parser(VecDeque<Token>);
 
 impl Parser {
-    pub(crate) fn parse(&mut self) -> Result<Expr, Vec<String>> {
-        self.expression()
+    pub(crate) fn parse(&mut self) -> Result<Stmts, Vec<String>> {
+        let mut statements: Vec<Stmt> = Vec::new();
+
+        while self.peek().is_some() {
+            statements.push(self.declaration()?);
+        }
+
+        Ok(statements.into())
+    }
+
+    fn declaration(&mut self) -> Result<Stmt, Vec<String>> {
+        let next_token = self.peek().unwrap();
+        match next_token.token_type {
+            TokenType::Var => self.var_declaration(),
+            _ => self.statement(),
+        }
+    }
+
+    fn var_declaration(&mut self) -> Result<Stmt, Vec<String>> {
+        let name = self.consume(TokenType::Identifier, "Expect variable name.")?;
+
+        let initializer = match self.check(&[TokenType::Equal]) {
+            true => Some(self.expression()?),
+            false => None,
+        };
+
+        Ok(Stmt::Var(VarStmt::new(name, initializer)))
+    }
+
+    fn statement(&self) -> Result<Stmt, Vec<String>> {
+        todo!()
     }
 
     fn expression(&mut self) -> Result<Expr, Vec<String>> {
@@ -132,12 +162,9 @@ impl Parser {
         }
     }
 
-    fn consume(&mut self, token_type: TokenType, message: &str) -> Result<(), Vec<String>> {
+    fn consume(&mut self, token_type: TokenType, message: &str) -> Result<Token, Vec<String>> {
         match self.check(&[token_type]) {
-            true => {
-                self.advance()?;
-                Ok(())
-            }
+            true => self.advance(),
             false => Err(Vec::from([format!(
                 "Could not consume: {}. \"{}\"",
                 self.peek().unwrap(),

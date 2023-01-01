@@ -13,11 +13,13 @@ const EXPRESSIONS: &'static RulesList = &[
     "Grouping : Expr expression",
     "Literal  : Literal value",
     "Unary    : Token operator, Expr right",
+    "Variable : Token name",
 ];
 
 const STATEMENTS: &'static RulesList = &[
     "Expression : Expr expression",
     "Print      : Expr expression",
+    "Var        : Token name, Option<Expr> initializer",
 ];
 
 fn main() -> anyhow::Result<()> {
@@ -38,6 +40,7 @@ fn define_ast(base: &str, rules: &RulesList) -> anyhow::Result<()> {
         mod $(base_snake)_generated {
             type Literal = super::$literal;
             type Token = super::$token;
+            $(maybe_import_expr(base_snake))
 
             pub(crate) trait Visitor<T> {
                 $(define_visitor_trait(base_title, base_snake, rules))
@@ -47,7 +50,7 @@ fn define_ast(base: &str, rules: &RulesList) -> anyhow::Result<()> {
                 $(define_enum(base_title, rules))
             }
 
-            pub(crate) fn walk_$(base_snake)<T>(visitor: &dyn Visitor<T>, $(base_snake): $(base_title)) -> T {
+            pub(crate) fn walk_$(base_snake)<T>(visitor: &mut dyn Visitor<T>, $(base_snake): $(base_title)) -> T {
                 match $(base_snake) {
                     $(define_walk(base_title, rules))
                 }
@@ -71,6 +74,16 @@ fn define_ast(base: &str, rules: &RulesList) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn maybe_import_expr(base_snake: &str) -> Tokens {
+    match base_snake {
+        "expr" => quote! {},
+        _ => {
+            let expr = rust::import("crate::expr", "Expr");
+            quote! { type Expr = super::$expr; }
+        }
+    }
+}
+
 fn define_visitor_trait(base_title: &str, base_snake: &str, rules: &RulesList) -> Tokens {
     let mut tokens = Tokens::new();
 
@@ -81,7 +94,7 @@ fn define_visitor_trait(base_title: &str, base_snake: &str, rules: &RulesList) -
         let token_title = &raw_token_name.to_case(Case::Title);
 
         tokens.append(quote! {
-            fn visit_$token_snake(&self, $base_snake: $token_title$base_title) -> T;
+            fn visit_$token_snake(&mut self, $base_snake: $token_title$base_title) -> T;
         })
     }
 

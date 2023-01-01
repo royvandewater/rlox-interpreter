@@ -2,13 +2,18 @@
 extern crate lazy_static;
 
 mod ast_printer;
+mod environment;
 mod expr;
 mod interpreter;
+mod parser;
+mod stmt;
 mod tokens;
 
 use std::{env, fs, io, process};
 
 use interpreter::Interpreter;
+use parser::Parser;
+use stmt::Stmts;
 use tokens::Tokens;
 
 fn main() {
@@ -33,29 +38,30 @@ fn main() {
 }
 
 fn run_file(filename: &String) -> Result<(), Vec<String>> {
-    let interpreter = Interpreter::new();
+    let mut interpreter = Interpreter::new();
     let contents = fs::read_to_string(filename)
         .map_err(|e| Vec::from([format!("Failed to read file '{}': '{}'", filename, e)]))?;
 
-    return run(&interpreter, contents);
+    return run(&mut interpreter, contents);
 }
 
 fn run_prompt() {
-    let interpreter = Interpreter::new();
+    let mut interpreter = Interpreter::new();
 
     for line in io::stdin().lines() {
-        match run(&interpreter, line.unwrap()) {
+        match run(&mut interpreter, line.unwrap()) {
             Ok(_) => continue,
             Err(errors) => format!("Error running line: {:?}", errors),
         };
     }
 }
 
-fn run(interpreter: &Interpreter, contents: String) -> Result<(), Vec<String>> {
+fn run(interpreter: &mut Interpreter, contents: String) -> Result<(), Vec<String>> {
     let tokens: Tokens = contents.parse()?;
-    let expression: expr::Expr = tokens.try_into()?;
+    let mut parser: Parser = tokens.into();
+    let statements: Stmts = parser.parse()?;
 
-    interpreter.interpret(expression)?;
+    interpreter.interpret(statements)?;
 
     Ok(())
 }
