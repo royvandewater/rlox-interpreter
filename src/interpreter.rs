@@ -93,8 +93,14 @@ impl expr::Visitor<Result<Literal, Vec<String>>> for Interpreter {
         }
     }
 
-    fn visit_variable(&mut self, _expr: VariableExpr) -> Result<Literal, Vec<String>> {
-        todo!()
+    fn visit_variable(&mut self, expr: VariableExpr) -> Result<Literal, Vec<String>> {
+        match self.environment.get(&expr.name.lexeme) {
+            None => Err(vec![format!(
+                "variable with name '{}' not defined",
+                &expr.name.lexeme
+            )]),
+            Some(literal) => Ok(literal),
+        }
     }
 }
 

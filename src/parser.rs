@@ -33,6 +33,10 @@ impl Parser {
             false => None,
         };
 
+        self.consume(
+            TokenType::Semicolon,
+            "Expect ';' after variable declaration",
+        )?;
         Ok(Stmt::Var(VarStmt::new(name, initializer)))
     }
 
@@ -119,8 +123,9 @@ impl Parser {
             TokenType::False => Expr::Literal(LiteralExpr::new(Literal::Boolean(false))),
             TokenType::True => Expr::Literal(LiteralExpr::new(Literal::Boolean(true))),
             TokenType::Nil => Expr::Literal(LiteralExpr::new(Literal::Nil)),
-            TokenType::Number => Expr::Literal(LiteralExpr::new(next_token.literal.clone())),
-            TokenType::String => Expr::Literal(LiteralExpr::new(next_token.literal.clone())),
+            TokenType::Number => Expr::Literal(LiteralExpr::new(next_token.literal)),
+            TokenType::String => Expr::Literal(LiteralExpr::new(next_token.literal)),
+            TokenType::Identifier => Expr::Variable(VariableExpr::new(next_token)),
             TokenType::LeftParen => {
                 let inner_expression = self.expression()?;
                 self.consume(TokenType::RightParen, "Expect ')' after expression")?;

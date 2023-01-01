@@ -12,4 +12,11 @@ impl Environment {
     pub fn define(&mut self, name: &str, value: Literal) {
         self.0.insert(name.to_string(), value);
     }
+
+    pub fn get(&self, name: &str) -> Option<Literal> {
+        match self.0.get(name) {
+            Some(v) => Some(v.clone()),
+            None => None,
+        }
+    }
 }
