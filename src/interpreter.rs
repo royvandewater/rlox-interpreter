@@ -14,14 +14,16 @@ impl Interpreter {
         Interpreter {}
     }
 
-    pub(crate) fn interpret(&self, statements: Stmts) -> Result<(), Vec<String>> {
-        let mut environment = Environment::new();
-
+    pub(crate) fn interpret(
+        &self,
+        mut environment: Environment,
+        statements: Stmts,
+    ) -> Result<Environment, Vec<String>> {
         for statement in statements {
             environment = self.execute(environment, statement)?;
         }
 
-        Ok(())
+        Ok(environment)
     }
 
     fn execute(

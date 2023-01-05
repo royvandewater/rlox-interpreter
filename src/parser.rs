@@ -20,7 +20,10 @@ impl Parser {
     fn declaration(&mut self) -> Result<Stmt, Vec<String>> {
         let next_token = self.peek().unwrap();
         match next_token.token_type {
-            TokenType::Var => self.var_declaration(),
+            TokenType::Var => {
+                _ = self.advance();
+                self.var_declaration()
+            }
             _ => self.statement(),
         }
     }
@@ -29,7 +32,10 @@ impl Parser {
         let name = self.consume(TokenType::Identifier, "Expect variable name.")?;
 
         let initializer = match self.check(&[TokenType::Equal]) {
-            true => Some(self.expression()?),
+            true => {
+                _ = self.advance();
+                Some(self.expression()?)
+            }
             false => None,
         };
 
@@ -228,7 +234,12 @@ impl Parser {
             true => self.advance(),
             false => Err(Vec::from([format!(
                 "Could not consume: {}. \"{}\"",
-                self.peek().unwrap(),
+                self.peek().unwrap_or(&Token::new(
+                    TokenType::Unknown,
+                    "<nothing>".to_string(),
+                    Literal::Nil,
+                    0
+                )),
                 message
             )])),
         }
