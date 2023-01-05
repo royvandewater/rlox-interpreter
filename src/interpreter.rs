@@ -7,59 +7,82 @@ use crate::{expr::*, stmt};
 use Literal as L;
 use TokenType as TT;
 
-pub(crate) struct Interpreter {
-    environment: Environment,
-}
+pub(crate) struct Interpreter;
 
 impl Interpreter {
     pub(crate) fn new() -> Interpreter {
-        Interpreter {
-            environment: Environment::new(),
-        }
+        Interpreter {}
     }
 
-    pub(crate) fn interpret(&mut self, statements: Stmts) -> Result<(), Vec<String>> {
+    pub(crate) fn interpret(&self, statements: Stmts) -> Result<(), Vec<String>> {
+        let mut environment = Environment::new();
+
         for statement in statements {
-            self.execute(statement)?;
+            environment = self.execute(environment, statement)?;
         }
+
         Ok(())
     }
 
-    fn execute(&mut self, statement: Stmt) -> Result<(), Vec<String>> {
-        walk_stmt(self, statement)
+    fn execute(
+        &self,
+        environment: Environment,
+        statement: Stmt,
+    ) -> Result<Environment, Vec<String>> {
+        walk_stmt(self, environment, statement)
     }
 
-    fn evaluate(&mut self, expression: expr::Expr) -> Result<Literal, Vec<String>> {
-        walk_expr(self, expression)
+    fn evaluate(
+        &self,
+        environment: Environment,
+        expression: expr::Expr,
+    ) -> Result<(Environment, Literal), Vec<String>> {
+        walk_expr(self, environment, expression)
+    }
+
+    fn execute_block<'a>(
+        &self,
+        mut environment: Environment,
+        statements: Vec<Stmt>,
+    ) -> Result<Environment, Vec<String>> {
+        for statement in statements {
+            environment = self.execute(environment, statement)?;
+        }
+
+        Ok(environment)
     }
 }
 
-impl expr::Visitor<Result<Literal, Vec<String>>> for Interpreter {
-    fn visit_binary(&mut self, expr: BinaryExpr) -> Result<Literal, Vec<String>> {
-        let left = self.evaluate(*expr.left)?;
-        let right = self.evaluate(*expr.right)?;
+impl expr::Visitor<Result<(Environment, Literal), Vec<String>>> for Interpreter {
+    fn visit_binary(
+        &self,
+        e: Environment,
+        expr: BinaryExpr,
+    ) -> Result<(Environment, Literal), Vec<String>> {
+        let (e, left) = self.evaluate(e, *expr.left)?;
+        let (e, right) = self.evaluate(e, *expr.right)?;
 
         let operator = expr.operator.token_type;
 
         match (left, operator, right) {
             // Math
-            (L::Number(l), TT::Plus, L::Number(r)) => Ok(L::Number(l + r)),
-            (L::Number(l), TT::Minus, L::Number(r)) => Ok(L::Number(l - r)),
-            (L::Number(l), TT::Slash, L::Number(r)) => Ok(L::Number(l / r)),
-            (L::Number(l), TT::Star, L::Number(r)) => Ok(L::Number(l * r)),
+            (L::Number(l), TT::Plus, L::Number(r)) => Ok((e, L::Number(l + r))),
+            (L::Number(l), TT::Minus, L::Number(r)) => Ok((e, L::Number(l - r))),
+            (L::Number(l), TT::Slash, L::Number(r)) => Ok((e, L::Number(l / r))),
+            (L::Number(l), TT::Star, L::Number(r)) => Ok((e, L::Number(l * r))),
 
             // String concatenation
-            (L::String(l), TT::Plus, L::String(r)) => Ok(L::String(format!("{}{}", l, r))),
+            (L::String(l), TT::Plus, L::String(r)) => Ok((e, L::String(format!("{}{}", l, r)))),
 
             // Comparison operators
-            (L::Number(l), TT::Greater, L::Number(r)) => Ok(L::Boolean(l > r)),
-            (L::Number(l), TT::GreaterEqual, L::Number(r)) => Ok(L::Boolean(l >= r)),
-            (L::Number(l), TT::Less, L::Number(r)) => Ok(L::Boolean(l < r)),
-            (L::Number(l), TT::LessEqual, L::Number(r)) => Ok(L::Boolean(l <= r)),
+            (L::Number(l), TT::Greater, L::Number(r)) => Ok((e, L::Boolean(l > r))),
+            (L::Number(l), TT::GreaterEqual, L::Number(r)) => Ok((e, L::Boolean(l >= r))),
+            (L::Number(l), TT::Less, L::Number(r)) => Ok((e, L::Boolean(l < r))),
+            (L::Number(l), TT::LessEqual, L::Number(r)) => Ok((e, L::Boolean(l <= r))),
 
             // Equality operators
-            (l, TT::EqualEqual, r) => Ok(L::Boolean(l == r)),
-            (l, TT::BangEqual, r) => Ok(L::Boolean(l != r)),
+            (l, TT::EqualEqual, r) => Ok((e, L::Boolean(l == r))),
+            (l, TT::BangEqual, r) => Ok((e, L::Boolean(l != r))),
 
             (l, _, r) => Err(vec![format!(
                 "Unsupported types for binary operation: {} {} {}",
@@ -68,20 +91,32 @@ impl expr::Visitor<Result<Literal, Vec<String>>> for Interpreter {
         }
     }
 
-    fn visit_grouping(&mut self, expr: GroupingExpr) -> Result<Literal, Vec<String>> {
-        self.evaluate(*expr.expression)
+    fn visit_grouping(
+        &self,
+        environment: Environment,
+        expr: GroupingExpr,
+    ) -> Result<(Environment, Literal), Vec<String>> {
+        self.evaluate(environment, *expr.expression)
     }
 
-    fn visit_literal(&mut self, expr: LiteralExpr) -> Result<Literal, Vec<String>> {
-        Ok(expr.value)
+    fn visit_literal(
+        &self,
+        environment: Environment,
+        expr: LiteralExpr,
+    ) -> Result<(Environment, Literal), Vec<String>> {
+        Ok((environment, expr.value))
     }
 
-    fn visit_unary(&mut self, expr: UnaryExpr) -> Result<Literal, Vec<String>> {
-        let right = self.evaluate(*expr.right)?;
+    fn visit_unary(
+        &self,
+        e: Environment,
+        expr: UnaryExpr,
+    ) -> Result<(Environment, Literal), Vec<String>> {
+        let (e, right) = self.evaluate(e, *expr.right)?;
 
         match (expr.operator.token_type, right) {
-            (TokenType::Bang, v) => Ok(Literal::Boolean(!evaluate_truthy(v))),
-            (TokenType::Minus, Literal::Number(n)) => Ok(Literal::Number(-1.0 * n)),
+            (TokenType::Bang, v) => Ok((e, Literal::Boolean(!evaluate_truthy(v)))),
+            (TokenType::Minus, Literal::Number(n)) => Ok((e, Literal::Number(-1.0 * n))),
             (TokenType::Minus, v) => Err(vec![format!(
                 "Invalid attempt to perform numerical negation on non-number: {}",
                 v
@@ -93,47 +128,79 @@ impl expr::Visitor<Result<Literal, Vec<String>>> for Interpreter {
         }
     }
 
-    fn visit_variable(&mut self, expr: VariableExpr) -> Result<Literal, Vec<String>> {
-        match self.environment.get(&expr.name.lexeme) {
+    fn visit_variable(
+        &self,
+        environment: Environment,
+        expr: VariableExpr,
+    ) -> Result<(Environment, Literal), Vec<String>> {
+        match environment.get(&expr.name.lexeme) {
             None => Err(vec![format!(
                 "variable with name '{}' not defined",
                 &expr.name.lexeme
             )]),
-            Some(literal) => Ok(literal),
+            Some(literal) => Ok((environment, literal)),
         }
     }
 
-    fn visit_assign(&mut self, expression: AssignExpr) -> Result<Literal, Vec<String>> {
+    fn visit_assign(
+        &self,
+        environment: Environment,
+        expression: AssignExpr,
+    ) -> Result<(Environment, Literal), Vec<String>> {
         let name = &expression.name.lexeme.to_string();
-        let value = self.evaluate(Expr::Assign(expression))?;
+        let (mut environment, value) = self.evaluate(environment, *expression.value)?;
 
-        match self.environment.assign(&name, value.clone()) {
-            Ok(_) => Ok(value),
+        match environment.assign(&name, value.clone()) {
+            Ok(_) => Ok((environment, value)),
             Err(e) => Err(vec![e]),
         }
     }
 }
 
-impl stmt::Visitor<Result<(), Vec<String>>> for Interpreter {
-    fn visit_expression(&mut self, stmt: stmt::ExpressionStmt) -> Result<(), Vec<String>> {
-        self.evaluate(*stmt.expression)?;
-        Ok(())
+impl stmt::Visitor<Result<Environment, Vec<String>>> for Interpreter {
+    fn visit_block<'a>(
+        &self,
+        environment: Environment,
+        stmt: stmt::BlockStmt,
+    ) -> Result<Environment, Vec<String>> {
+        let mut scope = Environment::with_enclosing(environment);
+
+        scope = self.execute_block(scope, stmt.statements)?;
+
+        Ok(scope.enclosing().unwrap())
     }
 
-    fn visit_print(&mut self, stmt: stmt::PrintStmt) -> Result<(), Vec<String>> {
-        let val = self.evaluate(*stmt.expression)?;
-        println!("{}", val);
-        Ok(())
+    fn visit_expression(
+        &self,
+        environment: Environment,
+        stmt: stmt::ExpressionStmt,
+    ) -> Result<Environment, Vec<String>> {
+        let (environment, _) = self.evaluate(environment, *stmt.expression)?;
+        Ok(environment)
     }
 
-    fn visit_var(&mut self, stmt: stmt::VarStmt) -> Result<(), Vec<String>> {
-        let value = match stmt.initializer {
-            Some(expression) => self.evaluate(expression)?,
-            None => Literal::Nil,
+    fn visit_print(
+        &self,
+        environment: Environment,
+        stmt: stmt::PrintStmt,
+    ) -> Result<Environment, Vec<String>> {
+        let (environment, value) = self.evaluate(environment, *stmt.expression)?;
+        println!("{}", value);
+        Ok(environment)
+    }
+
+    fn visit_var(
+        &self,
+        environment: Environment,
+        stmt: stmt::VarStmt,
+    ) -> Result<Environment, Vec<String>> {
+        let (mut environment, value) = match stmt.initializer {
+            Some(expression) => self.evaluate(environment, expression)?,
+            None => (environment, Literal::Nil),
         };
 
-        self.environment.define(&stmt.name.lexeme, value);
-        Ok(())
+        environment.define(&stmt.name.lexeme, value);
+        Ok(environment)
     }
 }
 

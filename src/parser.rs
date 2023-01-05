@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::expr::*;
-use crate::stmt::{ExpressionStmt, PrintStmt, Stmt, Stmts, VarStmt};
+use crate::stmt::{BlockStmt, ExpressionStmt, PrintStmt, Stmt, Stmts, VarStmt};
 use crate::tokens::{Literal, Token, TokenType, Tokens};
 
 pub(super) struct Parser(VecDeque<Token>);
@@ -41,12 +41,19 @@ impl Parser {
     }
 
     fn statement(&mut self) -> Result<Stmt, Vec<String>> {
-        match self.check(&[TokenType::Print]) {
-            true => {
-                _ = self.advance()?;
-                self.print_statement()
-            }
-            false => self.expression_statement(),
+        match self.peek() {
+            Some(token) => match token.token_type {
+                TokenType::Print => {
+                    self.advance()?;
+                    self.print_statement()
+                }
+                TokenType::LeftBrace => {
+                    self.advance()?;
+                    Ok(Stmt::Block(BlockStmt::new(self.block()?)))
+                }
+                _ => self.expression_statement(),
+            },
+            None => self.expression_statement(),
         }
     }
 
@@ -60,6 +67,18 @@ impl Parser {
         let expression = self.expression()?;
         self.consume(TokenType::Semicolon, "Expect ';' after expression.")?;
         Ok(Stmt::Expression(ExpressionStmt::new(expression)))
+    }
+
+    fn block(&mut self) -> Result<Vec<Stmt>, Vec<String>> {
+        let mut statements: Vec<Stmt> = Vec::new();
+
+        while self.peek().is_some() && !self.check(&[TokenType::RightBrace]) {
+            statements.push(self.declaration()?);
+        }
+
+        self.consume(TokenType::RightBrace, "Expect '}' after block.")?;
+
+        return Ok(statements);
     }
 
     fn expression(&mut self) -> Result<Expr, Vec<String>> {
