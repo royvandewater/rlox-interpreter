@@ -1,6 +1,8 @@
+use std::time::SystemTime;
+
 use crate::environment::Environment;
 use crate::stmt::{walk_stmt, Stmt, Stmts};
-use crate::tokens::TokenType;
+use crate::tokens::{Callable, LoxCallable, TokenType};
 use crate::{expr, tokens::Literal};
 use crate::{expr::*, stmt};
 
@@ -8,6 +10,21 @@ use Literal as L;
 use TokenType as TT;
 
 pub(crate) struct Interpreter;
+
+pub(crate) fn add_clock_to_environment(mut environment: Environment) -> Environment {
+    environment.define(
+        "clock",
+        Literal::Callable(LoxCallable::new(
+            "clock".to_string(),
+            Callable::Native(|| {
+                let now = SystemTime::now();
+                let duration = now.duration_since(SystemTime::UNIX_EPOCH).unwrap();
+                Literal::Number(duration.as_secs_f64())
+            }),
+        )),
+    );
+    environment
+}
 
 impl Interpreter {
     pub(crate) fn new() -> Interpreter {
@@ -52,6 +69,36 @@ impl Interpreter {
         }
 
         Ok(environment)
+    }
+
+    fn call(
+        &self,
+        environment: Environment,
+        callable: LoxCallable,
+        arguments: Vec<Literal>,
+    ) -> Result<(Environment, Literal), Vec<String>> {
+        if callable.arity() != arguments.len() {
+            return Err(vec![format!(
+                "Expected {} arguments but got {}.",
+                callable.arity(),
+                arguments.len()
+            )]);
+        }
+
+        match callable.callable {
+            Callable::Native(n) => Ok((environment, n())),
+            Callable::Function((block, params)) => {
+                let mut environment = Environment::with_enclosing(environment);
+
+                for (param, arg) in params.iter().zip(arguments) {
+                    environment.define(&param.lexeme, arg);
+                }
+
+                let environment = self.execute_block(environment, block)?;
+
+                Ok((environment, Literal::Nil))
+            }
+        }
     }
 }
 
@@ -103,6 +150,29 @@ impl expr::Visitor<Result<(Environment, Literal), Vec<String>>> for Interpreter 
             (l, _, r) => Err(vec![format!(
                 "Unsupported types for binary operation: {} {} {}",
                 l, expr.operator.lexeme, r
+            )]),
+        }
+    }
+
+    fn visit_call(
+        &self,
+        environment: Environment,
+        expr: CallExpr,
+    ) -> Result<(Environment, Literal), Vec<String>> {
+        let (mut environment, callee) = self.evaluate(environment, *expr.callee)?;
+
+        let mut arguments: Vec<Literal> = Vec::new();
+
+        for arg in expr.arguments {
+            let (e, value) = self.evaluate(environment, arg)?;
+            environment = e;
+            arguments.push(value);
+        }
+
+        match callee {
+            L::Callable(f) => self.call(environment, f, arguments),
+            _ => Err(vec![format!(
+                "visit_call called with non function literal callee"
             )]),
         }
     }
@@ -200,6 +270,20 @@ impl stmt::Visitor<Result<Environment, Vec<String>>> for Interpreter {
         Ok(environment)
     }
 
+    fn visit_function(
+        &self,
+        mut environment: Environment,
+        stmt: stmt::FunctionStmt,
+    ) -> Result<Environment, Vec<String>> {
+        let function = LoxCallable::new(
+            stmt.name.lexeme.clone(),
+            Callable::Function((stmt.body, stmt.params)),
+        );
+
+        environment.define(&stmt.name.lexeme, Literal::Callable(function));
+        Ok(environment)
+    }
+
     fn visit_if(
         &self,
         environment: Environment,
@@ -259,7 +343,6 @@ fn evaluate_truthy(v: &Literal) -> bool {
     match v {
         Literal::Nil => false,
         Literal::Boolean(b) => *b,
-        Literal::Number(_) => true,
-        Literal::String(_) => true,
+        _ => true,
     }
 }

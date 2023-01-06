@@ -13,7 +13,7 @@ mod tokens;
 use std::{env, fs, io, process};
 
 use environment::Environment;
-use interpreter::Interpreter;
+use interpreter::{add_clock_to_environment, Interpreter};
 use parser::Parser;
 use stmt::Stmts;
 use tokens::Tokens;
@@ -40,14 +40,15 @@ fn main() {
 }
 
 fn run_file(filename: &String) -> Result<(), Vec<String>> {
+    let environment = add_clock_to_environment(Environment::new());
     let contents = fs::read_to_string(filename)
         .map_err(|e| Vec::from([format!("Failed to read file '{}': '{}'", filename, e)]))?;
 
-    run(Environment::new(), contents).map(|_| ())
+    run(environment, contents).map(|_| ())
 }
 
 fn run_prompt() {
-    let mut environment = Environment::new();
+    let mut environment = add_clock_to_environment(Environment::new());
 
     for line in io::stdin().lines() {
         let failsafe_environment = environment.clone();

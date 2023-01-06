@@ -32,12 +32,7 @@ impl Visitor<String> for AstPrinter {
     }
 
     fn visit_literal(&self, _environment: Environment, expr: LiteralExpr) -> String {
-        match &expr.value {
-            crate::tokens::Literal::Nil => "nil".to_string(),
-            crate::tokens::Literal::Number(n) => format!("{}", n),
-            crate::tokens::Literal::String(s) => format!("{}", s),
-            crate::tokens::Literal::Boolean(b) => format!("{}", b),
-        }
+        format!("{}", &expr.value)
     }
 
     fn visit_grouping(&self, _environment: Environment, expr: GroupingExpr) -> String {
@@ -57,6 +52,10 @@ impl Visitor<String> for AstPrinter {
     }
 
     fn visit_logical(&self, _environment: Environment, _expr: LogicalExpr) -> String {
+        todo!()
+    }
+
+    fn visit_call(&self, _environment: Environment, _expr: CallExpr) -> String {
         todo!()
     }
 }

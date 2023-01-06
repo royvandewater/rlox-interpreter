@@ -1,6 +1,8 @@
 use std::collections::VecDeque;
 
-use crate::stmt::{BlockStmt, ExpressionStmt, IfStmt, PrintStmt, Stmt, Stmts, VarStmt, WhileStmt};
+use crate::stmt::{
+    BlockStmt, ExpressionStmt, FunctionStmt, IfStmt, PrintStmt, Stmt, Stmts, VarStmt, WhileStmt,
+};
 use crate::tokens::{Literal, Token, TokenType, Tokens};
 use crate::{expr, expr::*, stmt};
 
@@ -20,12 +22,54 @@ impl Parser {
     fn declaration(&mut self) -> Result<Stmt, Vec<String>> {
         let next_token = self.peek().unwrap();
         match next_token.token_type {
+            TokenType::Fun => {
+                _ = self.advance();
+                self.function("function")
+            }
             TokenType::Var => {
                 _ = self.advance();
                 self.var_declaration()
             }
             _ => self.statement(),
         }
+    }
+
+    fn function(&mut self, kind: &str) -> Result<Stmt, Vec<String>> {
+        let name = self.consume(TokenType::Identifier, &format!("Expect {} name.", kind))?;
+
+        self.consume(
+            TokenType::LeftParen,
+            &format!("Expect '(' after {} name.", kind),
+        )?;
+
+        let mut params: Vec<Token> = Vec::new();
+
+        loop {
+            if params.len() > 255 {
+                return Err(vec![format!("Can't have more than 255 parameters.")]);
+            }
+
+            match self.peek_token_type() {
+                TokenType::Comma => self.advance_and_discard()?,
+                TokenType::Identifier => {
+                    params.push(self.advance()?);
+                }
+                TokenType::RightParen => {
+                    self.advance()?;
+                    break;
+                }
+                _ => se("Expect parameter name, comma, or right paren.")?,
+            }
+        }
+
+        self.consume(
+            TokenType::LeftBrace,
+            &format!("Expect '{{' before {} body", kind),
+        )?;
+
+        let body = self.block()?;
+
+        return Ok(Stmt::Function(FunctionStmt::new(name, params, body)));
     }
 
     fn var_declaration(&mut self) -> Result<Stmt, Vec<String>> {
@@ -276,13 +320,46 @@ impl Parser {
 
     fn unary(&mut self) -> Result<Expr, Vec<String>> {
         if !self.check(&[TokenType::Bang, TokenType::Minus]) {
-            return self.primary();
+            return self.call();
         }
 
         let operator = self.advance()?;
         let right = self.unary()?;
 
         Ok(Expr::Unary(UnaryExpr::new(operator, right)))
+    }
+
+    fn call(&mut self) -> Result<Expr, Vec<String>> {
+        let mut expr = self.primary()?;
+
+        while TokenType::LeftParen == self.peek_token_type() {
+            self.advance()?;
+            expr = self.finish_call(expr)?;
+        }
+
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Expr) -> Result<Expr, Vec<String>> {
+        let mut arguments: Vec<Expr> = Vec::new();
+
+        loop {
+            if arguments.len() > 255 {
+                return Err(vec![format!("Can't have more than 255 arguments")]);
+            }
+
+            match self.peek_token_type() {
+                TokenType::Comma => self.advance_and_discard()?,
+                TokenType::RightParen => break,
+                _ => {
+                    arguments.push(self.expression()?);
+                }
+            }
+        }
+
+        self.consume(TokenType::RightParen, "Expect ')' after arguments.")?;
+
+        Ok(Expr::Call(CallExpr::new(callee, arguments)))
     }
 
     fn primary(&mut self) -> Result<Expr, Vec<String>> {
@@ -347,6 +424,11 @@ impl Parser {
         }
     }
 
+    fn advance_and_discard(&mut self) -> Result<(), Vec<String>> {
+        self.advance()?;
+        Ok(())
+    }
+
     fn consume(&mut self, token_type: TokenType, message: &str) -> Result<Token, Vec<String>> {
         match self.check(&[token_type]) {
             true => self.advance(),
@@ -368,4 +450,8 @@ impl From<Tokens> for Parser {
     fn from(tokens: Tokens) -> Self {
         Parser(tokens.iter().cloned().collect())
     }
+}
+
+fn se(s: &str) -> Result<(), Vec<String>> {
+    Err(vec![s.to_string()])
 }

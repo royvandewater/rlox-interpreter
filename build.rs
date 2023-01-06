@@ -11,6 +11,7 @@ type RulesList = [&'static str];
 const EXPRESSIONS: &'static RulesList = &[
     "Assign   : Token name, Expr value",
     "Binary   : Expr left, Token operator, Expr right",
+    "Call     : Expr callee, Vec<Expr> arguments",
     "Grouping : Expr expression",
     "Literal  : Literal value",
     "Logical  : Expr left, Token operator, Expr right",
@@ -21,6 +22,7 @@ const EXPRESSIONS: &'static RulesList = &[
 const STATEMENTS: &'static RulesList = &[
     "Block      : Vec<Stmt> statements",
     "Expression : Expr expression",
+    "Function   : Token name, Vec<Token> params, Vec<Stmt> body",
     "If         : Expr condition, Stmt then_branch, Stmt else_branch",
     "Print      : Expr expression",
     "Var        : Token name, Option<Expr> initializer",
@@ -51,7 +53,7 @@ fn define_ast(base: &str, rules: &RulesList) -> anyhow::Result<()> {
                 $(define_visitor_trait(base_title, base_snake, rules))
             }
 
-            #[derive(Clone)]
+            #[derive(Clone, Debug, PartialEq)]
             pub(crate) enum $(base_title) {
                 $(define_enum(base_title, rules))
             }
@@ -173,7 +175,7 @@ fn define_type(base_title: &str, rule: &str) -> Tokens {
     let fields: Vec<Field> = raw_rules.split(", ").map(parse_field).collect();
 
     quote! {
-        #[derive(Clone)]
+        #[derive(Clone, Debug, PartialEq)]
         pub(crate) struct $class {
             $(define_struct_fields(&fields))
         }

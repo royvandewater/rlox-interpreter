@@ -1,11 +1,13 @@
+mod lox_callable;
 mod scanner;
 
 use std::{fmt::Display, slice::Iter, str::FromStr};
 
 use self::scanner::Scanner;
+pub(crate) use lox_callable::*;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum TokenType {
+pub(crate) enum TokenType {
     LeftParen,
     RightParen,
     LeftBrace,
@@ -56,11 +58,12 @@ pub enum TokenType {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Literal {
+pub(crate) enum Literal {
     Nil,
     Number(f64),
     String(String),
     Boolean(bool),
+    Callable(LoxCallable),
 }
 
 impl Display for Literal {
@@ -70,12 +73,13 @@ impl Display for Literal {
             Literal::Number(n) => f.write_fmt(format_args!("{}", n)),
             Literal::String(s) => f.write_str(s.as_str()),
             Literal::Boolean(b) => f.write_fmt(format_args!("{}", b)),
+            Literal::Callable(c) => f.write_fmt(format_args!("{}", c)),
         }
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct Token {
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
     pub literal: Literal,
@@ -108,7 +112,7 @@ impl Display for Token {
     }
 }
 
-pub struct Tokens(Vec<Token>);
+pub(crate) struct Tokens(Vec<Token>);
 
 impl Tokens {
     pub fn iter(&self) -> Iter<Token> {
