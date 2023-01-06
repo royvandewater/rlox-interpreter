@@ -1,0 +1,5 @@
+// no comment.
+fun main() {
+  print "Hello world!";
+}
+main();
