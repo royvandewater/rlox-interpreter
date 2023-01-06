@@ -55,4 +55,8 @@ impl Visitor<String> for AstPrinter {
     fn visit_assign(&self, _environment: Environment, _expr: AssignExpr) -> String {
         todo!()
     }
+
+    fn visit_logical(&self, _environment: Environment, _expr: LogicalExpr) -> String {
+        todo!()
+    }
 }

@@ -13,6 +13,7 @@ const EXPRESSIONS: &'static RulesList = &[
     "Binary   : Expr left, Token operator, Expr right",
     "Grouping : Expr expression",
     "Literal  : Literal value",
+    "Logical  : Expr left, Token operator, Expr right",
     "Unary    : Token operator, Expr right",
     "Variable : Token name",
 ];

@@ -56,6 +56,20 @@ impl Interpreter {
 }
 
 impl expr::Visitor<Result<(Environment, Literal), Vec<String>>> for Interpreter {
+    fn visit_assign(
+        &self,
+        environment: Environment,
+        expression: AssignExpr,
+    ) -> Result<(Environment, Literal), Vec<String>> {
+        let name = &expression.name.lexeme.to_string();
+        let (mut environment, value) = self.evaluate(environment, *expression.value)?;
+
+        match environment.assign(&name, value.clone()) {
+            Ok(_) => Ok((environment, value)),
+            Err(e) => Err(vec![e]),
+        }
+    }
+
     fn visit_binary(
         &self,
         e: Environment,
@@ -109,27 +123,6 @@ impl expr::Visitor<Result<(Environment, Literal), Vec<String>>> for Interpreter 
         Ok((environment, expr.value))
     }
 
-    fn visit_unary(
-        &self,
-        e: Environment,
-        expr: UnaryExpr,
-    ) -> Result<(Environment, Literal), Vec<String>> {
-        let (e, right) = self.evaluate(e, *expr.right)?;
-
-        match (expr.operator.token_type, right) {
-            (TokenType::Bang, v) => Ok((e, Literal::Boolean(!evaluate_truthy(v)))),
-            (TokenType::Minus, Literal::Number(n)) => Ok((e, Literal::Number(-1.0 * n))),
-            (TokenType::Minus, v) => Err(vec![format!(
-                "Invalid attempt to perform numerical negation on non-number: {}",
-                v
-            )]),
-            (_, v) => Err(vec![format!(
-                "The value '{}' does not support the unary operation '{}'",
-                v, expr.operator.lexeme
-            )]),
-        }
-    }
-
     fn visit_variable(
         &self,
         environment: Environment,
@@ -144,17 +137,43 @@ impl expr::Visitor<Result<(Environment, Literal), Vec<String>>> for Interpreter 
         }
     }
 
-    fn visit_assign(
+    fn visit_logical(
         &self,
         environment: Environment,
-        expression: AssignExpr,
+        expr: LogicalExpr,
     ) -> Result<(Environment, Literal), Vec<String>> {
-        let name = &expression.name.lexeme.to_string();
-        let (mut environment, value) = self.evaluate(environment, *expression.value)?;
+        let (environment, left) = self.evaluate(environment, *expr.left)?;
 
-        match environment.assign(&name, value.clone()) {
-            Ok(_) => Ok((environment, value)),
-            Err(e) => Err(vec![e]),
+        match (evaluate_truthy(&left), expr.operator.token_type) {
+            (true, TokenType::And) => self.evaluate(environment, *expr.right),
+            (false, TokenType::And) => Ok((environment, left)),
+            (true, TokenType::Or) => Ok((environment, left)),
+            (false, TokenType::Or) => self.evaluate(environment, *expr.right),
+            _ => Err(vec![format!(
+                "visit_logical called with non and/or token: {}",
+                expr.operator
+            )]),
+        }
+    }
+
+    fn visit_unary(
+        &self,
+        e: Environment,
+        expr: UnaryExpr,
+    ) -> Result<(Environment, Literal), Vec<String>> {
+        let (e, right) = self.evaluate(e, *expr.right)?;
+
+        match (expr.operator.token_type, right) {
+            (TokenType::Bang, v) => Ok((e, Literal::Boolean(!evaluate_truthy(&v)))),
+            (TokenType::Minus, Literal::Number(n)) => Ok((e, Literal::Number(-1.0 * n))),
+            (TokenType::Minus, v) => Err(vec![format!(
+                "Invalid attempt to perform numerical negation on non-number: {}",
+                v
+            )]),
+            (_, v) => Err(vec![format!(
+                "The value '{}' does not support the unary operation '{}'",
+                v, expr.operator.lexeme
+            )]),
         }
     }
 }
@@ -188,7 +207,7 @@ impl stmt::Visitor<Result<Environment, Vec<String>>> for Interpreter {
     ) -> Result<Environment, Vec<String>> {
         let (environment, condition_result) = self.evaluate(environment, *stmt.condition)?;
 
-        match evaluate_truthy(condition_result) {
+        match evaluate_truthy(&condition_result) {
             true => self.execute(environment, *stmt.then_branch),
             false => self.execute(environment, *stmt.else_branch),
         }
@@ -219,10 +238,10 @@ impl stmt::Visitor<Result<Environment, Vec<String>>> for Interpreter {
     }
 }
 
-fn evaluate_truthy(v: Literal) -> bool {
+fn evaluate_truthy(v: &Literal) -> bool {
     match v {
         Literal::Nil => false,
-        Literal::Boolean(b) => b,
+        Literal::Boolean(b) => *b,
         Literal::Number(_) => true,
         Literal::String(_) => true,
     }

@@ -114,7 +114,7 @@ impl Parser {
     }
 
     fn assignment(&mut self) -> Result<Expr, Vec<String>> {
-        let expr = self.equality()?;
+        let expr = self.or()?;
 
         if self.check(&[TokenType::Equal]) {
             _ = self.advance()?;
@@ -130,6 +130,30 @@ impl Parser {
         }
 
         Ok(expr)
+    }
+
+    fn or(&mut self) -> Result<Expr, Vec<String>> {
+        let mut expression = self.and()?;
+
+        while self.check_one(TokenType::Or) {
+            let operator = self.advance()?;
+            let right = self.and()?;
+            expression = Expr::Logical(LogicalExpr::new(expression, operator, right))
+        }
+
+        Ok(expression)
+    }
+
+    fn and(&mut self) -> Result<Expr, Vec<String>> {
+        let mut expression = self.equality()?;
+
+        while self.check_one(TokenType::And) {
+            let operator = self.advance()?;
+            let right = self.equality()?;
+            expression = Expr::Logical(LogicalExpr::new(expression, operator, right))
+        }
+
+        Ok(expression)
     }
 
     fn equality(&mut self) -> Result<Expr, Vec<String>> {
@@ -229,6 +253,10 @@ impl Parser {
             None => false,
             Some(token) => token_types.iter().any(|&t| t == token.token_type),
         }
+    }
+
+    fn check_one(&self, token_type: TokenType) -> bool {
+        self.check(&[token_type])
     }
 
     fn peek(&self) -> Option<&Token> {
