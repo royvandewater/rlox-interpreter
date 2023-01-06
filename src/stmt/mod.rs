@@ -20,3 +20,7 @@ impl Iterator for Stmts {
         self.0.pop_front()
     }
 }
+
+pub(crate) fn noop() -> Stmt {
+    Stmt::Block(BlockStmt::new(Vec::new()))
+}

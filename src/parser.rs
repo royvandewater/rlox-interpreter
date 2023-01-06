@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 
-use crate::expr::*;
 use crate::stmt::{BlockStmt, ExpressionStmt, IfStmt, PrintStmt, Stmt, Stmts, VarStmt, WhileStmt};
 use crate::tokens::{Literal, Token, TokenType, Tokens};
+use crate::{expr, expr::*, stmt};
 
 pub(super) struct Parser(VecDeque<Token>);
 
@@ -49,6 +49,10 @@ impl Parser {
     fn statement(&mut self) -> Result<Stmt, Vec<String>> {
         match self.peek() {
             Some(token) => match token.token_type {
+                TokenType::For => {
+                    self.advance()?;
+                    self.for_statement()
+                }
                 TokenType::If => {
                     self.advance()?;
                     self.if_statement()
@@ -69,6 +73,49 @@ impl Parser {
             },
             None => self.expression_statement(),
         }
+    }
+
+    fn for_statement(&mut self) -> Result<Stmt, Vec<String>> {
+        self.consume(TokenType::LeftParen, "Expect '(' after 'for'.")?;
+
+        let initializer = match self.peek_token_type() {
+            TokenType::Semicolon => {
+                self.advance()?;
+                stmt::noop()
+            }
+            TokenType::Var => {
+                self.advance()?;
+                self.var_declaration()?
+            }
+            _ => self.expression_statement()?,
+        };
+
+        let condition = match self.peek_token_type() {
+            TokenType::Semicolon => expr::nil(),
+            _ => self.expression()?,
+        };
+        self.consume(TokenType::Semicolon, "Expect ';' after 'for' condition.")?;
+
+        let increment = match self.peek_token_type() {
+            TokenType::RightParen => expr::nil(),
+            _ => self.expression()?,
+        };
+
+        self.consume(TokenType::RightParen, "Expect ')' after 'for' clauses.")?;
+
+        let original_body = self.statement()?;
+
+        #[rustfmt::skip]
+        Ok(Stmt::Block(BlockStmt::new(vec![
+            initializer,
+            Stmt::While(WhileStmt::new(
+                condition,
+                Stmt::Block(BlockStmt::new(vec![
+                    original_body,
+                    Stmt::Expression(ExpressionStmt::new(increment)),
+                ])),
+            )),
+        ])))
     }
 
     fn while_statement(&mut self) -> Result<Stmt, Vec<String>> {
@@ -93,7 +140,7 @@ impl Parser {
                 self.advance()?;
                 self.statement()?
             }
-            _ => Stmt::Block(BlockStmt::new(Vec::new())), // noop
+            _ => stmt::noop(),
         };
 
         Ok(Stmt::If(IfStmt::new(condition, then_branch, else_branch)))
