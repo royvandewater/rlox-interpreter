@@ -20,6 +20,7 @@ const EXPRESSIONS: &'static RulesList = &[
 const STATEMENTS: &'static RulesList = &[
     "Block      : Vec<Stmt> statements",
     "Expression : Expr expression",
+    "If         : Expr condition, Stmt then_branch, Stmt else_branch",
     "Print      : Expr expression",
     "Var        : Token name, Option<Expr> initializer",
 ];
@@ -190,6 +191,7 @@ fn define_struct_fields(fields: &Vec<Field>) -> Tokens {
         let name = &field.name;
         let type_name = match field.type_name.as_str() {
             "Expr" => "Box<Expr>",
+            "Stmt" => "Box<Stmt>",
             v => v,
         };
 
@@ -223,6 +225,7 @@ fn define_constructor_assignment(fields: &Vec<Field>) -> Tokens {
         let name = &field.name;
         let assigned_name = match field.type_name.as_str() {
             "Expr" => format!("Box::new({})", name),
+            "Stmt" => format!("Box::new({})", name),
             _ => name.to_string(),
         };
 

@@ -52,7 +52,7 @@ pub enum TokenType {
     While,
 
     Eof,
-    Unknown,
+    None,
 }
 
 #[derive(Clone, Debug, PartialEq)]

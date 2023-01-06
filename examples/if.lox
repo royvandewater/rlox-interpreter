@@ -1,0 +1,15 @@
+var a = 3;
+var b = 5;
+
+if (a < b) {
+    print "a is less than b";
+} else {
+    print "you should not get here: 1";
+}
+
+if (a + 5 < b) {
+    print "you should not get here: 2";
+} else {
+    print "a + 5 is greater than b";
+}
+

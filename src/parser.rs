@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::expr::*;
-use crate::stmt::{BlockStmt, ExpressionStmt, PrintStmt, Stmt, Stmts, VarStmt};
+use crate::stmt::{BlockStmt, ExpressionStmt, IfStmt, PrintStmt, Stmt, Stmts, VarStmt};
 use crate::tokens::{Literal, Token, TokenType, Tokens};
 
 pub(super) struct Parser(VecDeque<Token>);
@@ -49,6 +49,10 @@ impl Parser {
     fn statement(&mut self) -> Result<Stmt, Vec<String>> {
         match self.peek() {
             Some(token) => match token.token_type {
+                TokenType::If => {
+                    self.advance()?;
+                    self.if_statement()
+                }
                 TokenType::Print => {
                     self.advance()?;
                     self.print_statement()
@@ -61,6 +65,24 @@ impl Parser {
             },
             None => self.expression_statement(),
         }
+    }
+
+    fn if_statement(&mut self) -> Result<Stmt, Vec<String>> {
+        self.consume(TokenType::LeftParen, "Expect '(' after 'if'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, "Expect ')' after if condition.")?;
+
+        let then_branch = self.statement()?;
+
+        let else_branch = match self.peek_token_type() {
+            TokenType::Else => {
+                self.advance()?;
+                self.statement()?
+            }
+            _ => Stmt::Block(BlockStmt::new(Vec::new())), // noop
+        };
+
+        Ok(Stmt::If(IfStmt::new(condition, then_branch, else_branch)))
     }
 
     fn print_statement(&mut self) -> Result<Stmt, Vec<String>> {
@@ -217,6 +239,13 @@ impl Parser {
         }
     }
 
+    fn peek_token_type(&self) -> TokenType {
+        match self.peek() {
+            Some(t) => t.token_type,
+            None => TokenType::None,
+        }
+    }
+
     fn advance(&mut self) -> Result<Token, Vec<String>> {
         match self.0.pop_front() {
             None => Err(Vec::from([
@@ -235,7 +264,7 @@ impl Parser {
             false => Err(Vec::from([format!(
                 "Could not consume: {}. \"{}\"",
                 self.peek().unwrap_or(&Token::new(
-                    TokenType::Unknown,
+                    TokenType::None,
                     "<nothing>".to_string(),
                     Literal::Nil,
                     0

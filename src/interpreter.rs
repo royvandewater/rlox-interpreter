@@ -181,6 +181,19 @@ impl stmt::Visitor<Result<Environment, Vec<String>>> for Interpreter {
         Ok(environment)
     }
 
+    fn visit_if(
+        &self,
+        environment: Environment,
+        stmt: stmt::IfStmt,
+    ) -> Result<Environment, Vec<String>> {
+        let (environment, condition_result) = self.evaluate(environment, *stmt.condition)?;
+
+        match evaluate_truthy(condition_result) {
+            true => self.execute(environment, *stmt.then_branch),
+            false => self.execute(environment, *stmt.else_branch),
+        }
+    }
+
     fn visit_print(
         &self,
         environment: Environment,
