@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use crate::expr::*;
-use crate::stmt::{BlockStmt, ExpressionStmt, IfStmt, PrintStmt, Stmt, Stmts, VarStmt};
+use crate::stmt::{BlockStmt, ExpressionStmt, IfStmt, PrintStmt, Stmt, Stmts, VarStmt, WhileStmt};
 use crate::tokens::{Literal, Token, TokenType, Tokens};
 
 pub(super) struct Parser(VecDeque<Token>);
@@ -57,6 +57,10 @@ impl Parser {
                     self.advance()?;
                     self.print_statement()
                 }
+                TokenType::While => {
+                    self.advance()?;
+                    self.while_statement()
+                }
                 TokenType::LeftBrace => {
                     self.advance()?;
                     Ok(Stmt::Block(BlockStmt::new(self.block()?)))
@@ -65,6 +69,16 @@ impl Parser {
             },
             None => self.expression_statement(),
         }
+    }
+
+    fn while_statement(&mut self) -> Result<Stmt, Vec<String>> {
+        self.consume(TokenType::LeftParen, "Expect '(' after 'while'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, "Expect ')' after while condition.")?;
+
+        let body = self.statement()?;
+
+        Ok(Stmt::While(WhileStmt::new(condition, body)))
     }
 
     fn if_statement(&mut self) -> Result<Stmt, Vec<String>> {

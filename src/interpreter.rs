@@ -236,6 +236,23 @@ impl stmt::Visitor<Result<Environment, Vec<String>>> for Interpreter {
         environment.define(&stmt.name.lexeme, value);
         Ok(environment)
     }
+
+    fn visit_while(
+        &self,
+        mut environment: Environment,
+        stmt: stmt::WhileStmt,
+    ) -> Result<Environment, Vec<String>> {
+        loop {
+            let (e, condition_result) = self.evaluate(environment, *stmt.condition.clone())?;
+            environment = e;
+
+            if !evaluate_truthy(&condition_result) {
+                return Ok(environment);
+            }
+
+            environment = self.execute(environment, *stmt.body.clone())?;
+        }
+    }
 }
 
 fn evaluate_truthy(v: &Literal) -> bool {

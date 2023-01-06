@@ -24,6 +24,7 @@ const STATEMENTS: &'static RulesList = &[
     "If         : Expr condition, Stmt then_branch, Stmt else_branch",
     "Print      : Expr expression",
     "Var        : Token name, Option<Expr> initializer",
+    "While      : Expr condition, Stmt body",
 ];
 
 fn main() -> anyhow::Result<()> {
@@ -50,6 +51,7 @@ fn define_ast(base: &str, rules: &RulesList) -> anyhow::Result<()> {
                 $(define_visitor_trait(base_title, base_snake, rules))
             }
 
+            #[derive(Clone)]
             pub(crate) enum $(base_title) {
                 $(define_enum(base_title, rules))
             }
@@ -171,6 +173,7 @@ fn define_type(base_title: &str, rule: &str) -> Tokens {
     let fields: Vec<Field> = raw_rules.split(", ").map(parse_field).collect();
 
     quote! {
+        #[derive(Clone)]
         pub(crate) struct $class {
             $(define_struct_fields(&fields))
         }
