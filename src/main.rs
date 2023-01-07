@@ -10,9 +10,10 @@ mod parser;
 mod stmt;
 mod tokens;
 
-use std::{env, fs, io, process};
+use std::{cell::RefCell, env, fs, io, process, rc::Rc};
 
 use environment::Environment;
+use expr::EnvRef;
 use interpreter::{add_clock_to_environment, Interpreter};
 use parser::Parser;
 use stmt::Stmts;
@@ -39,37 +40,36 @@ fn main() {
     run_prompt();
 }
 
+fn init_env_ref() -> EnvRef {
+    Rc::new(RefCell::new(add_clock_to_environment(Environment::new())))
+}
+
 fn run_file(filename: &String) -> Result<(), Vec<String>> {
-    let environment = add_clock_to_environment(Environment::new());
+    let env_ref = init_env_ref();
     let contents = fs::read_to_string(filename)
         .map_err(|e| Vec::from([format!("Failed to read file '{}': '{}'", filename, e)]))?;
 
-    run(environment, contents).map(|_| ())
+    run(env_ref, contents).map(|_| ())
 }
 
 fn run_prompt() {
-    let mut environment = add_clock_to_environment(Environment::new());
+    let env_ref = init_env_ref();
 
     for line in io::stdin().lines() {
-        let failsafe_environment = environment.clone();
-
-        match run(environment, line.unwrap()) {
-            Ok(e) => {
-                environment = e;
-            }
+        match run(env_ref.clone(), line.unwrap()) {
+            Ok(_) => {}
             Err(errors) => {
-                environment = failsafe_environment;
                 format!("Error running line: {:?}", errors);
             }
         };
     }
 }
 
-fn run(environment: Environment, contents: String) -> Result<Environment, Vec<String>> {
+fn run(env_ref: EnvRef, contents: String) -> Result<(), Vec<String>> {
     let interpreter = Interpreter::new();
     let tokens: Tokens = contents.parse()?;
     let mut parser: Parser = tokens.into();
     let statements: Stmts = parser.parse()?;
 
-    interpreter.interpret(environment, statements)
+    interpreter.interpret(env_ref, statements)
 }

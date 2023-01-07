@@ -1,10 +1,10 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::tokens::Literal;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Environment {
-    enclosing: Option<Box<Environment>>,
+    enclosing: Option<Rc<RefCell<Environment>>>,
     values: HashMap<String, Literal>,
 }
 
@@ -16,18 +16,11 @@ impl Environment {
         }
     }
 
-    pub fn with_enclosing(enclosing: Environment) -> Environment {
-        Environment {
-            enclosing: Some(Box::new(enclosing)),
+    pub fn with_enclosing(enclosing: Rc<RefCell<Environment>>) -> Rc<RefCell<Environment>> {
+        Rc::new(RefCell::new(Environment {
+            enclosing: Some(enclosing),
             values: HashMap::new(),
-        }
-    }
-
-    pub fn enclosing(&mut self) -> Option<Environment> {
-        match self.enclosing.take() {
-            Some(e) => Some(*e),
-            None => None,
-        }
+        }))
     }
 
     pub fn define(&mut self, name: &str, value: Literal) {
@@ -41,7 +34,7 @@ impl Environment {
                 Ok(())
             }
             false => match &mut self.enclosing {
-                Some(e) => e.assign(name, value),
+                Some(e) => e.borrow_mut().assign(name, value),
                 None => Err(format!("Undefined variable '{}'", name)),
             },
         }
@@ -51,7 +44,7 @@ impl Environment {
         match self.values.get(name) {
             Some(v) => Some(v.clone()),
             None => match &self.enclosing {
-                Some(e) => e.get(name),
+                Some(e) => e.borrow().get(name),
                 None => None,
             },
         }

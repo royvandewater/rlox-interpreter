@@ -2,13 +2,31 @@ use crate::stmt::Stmt;
 use std::fmt::Display;
 
 use super::{Literal, Token};
+use crate::expr::EnvRef;
 
 pub(crate) type Native = fn() -> Literal;
 
 #[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Function {
+    pub body: Vec<Stmt>,
+    pub params: Vec<Token>,
+    pub env_ref: EnvRef,
+}
+
+impl Function {
+    pub(crate) fn new(body: Vec<Stmt>, params: Vec<Token>, env_ref: EnvRef) -> Self {
+        Self {
+            body,
+            params,
+            env_ref,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Callable {
     Native(Native),
-    Function((Vec<Stmt>, Vec<Token>)),
+    Function(Function),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -25,7 +43,7 @@ impl LoxCallable {
     pub fn arity(&self) -> usize {
         match &self.callable {
             Callable::Native(_) => 0,
-            Callable::Function((_, params)) => params.len(),
+            Callable::Function(f) => f.params.len(),
         }
     }
 }
