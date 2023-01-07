@@ -1,7 +1,8 @@
 use std::collections::VecDeque;
 
 use crate::stmt::{
-    BlockStmt, ExpressionStmt, FunctionStmt, IfStmt, PrintStmt, Stmt, Stmts, VarStmt, WhileStmt,
+    BlockStmt, ExpressionStmt, FunctionStmt, IfStmt, PrintStmt, ReturnStmt, Stmt, Stmts, VarStmt,
+    WhileStmt,
 };
 use crate::tokens::{Literal, Token, TokenType, Tokens};
 use crate::{expr, expr::*, stmt};
@@ -105,6 +106,10 @@ impl Parser {
                     self.advance()?;
                     self.print_statement()
                 }
+                TokenType::Return => {
+                    self.advance()?;
+                    self.return_statement()
+                }
                 TokenType::While => {
                     self.advance()?;
                     self.while_statement()
@@ -188,6 +193,16 @@ impl Parser {
         };
 
         Ok(Stmt::If(IfStmt::new(condition, then_branch, else_branch)))
+    }
+
+    fn return_statement(&mut self) -> Result<Stmt, Vec<String>> {
+        let value = match self.peek_token_type() {
+            TokenType::Semicolon => expr::nil(),
+            _ => self.expression()?,
+        };
+        self.consume(TokenType::Semicolon, "Expect ';' return statement value.")?;
+
+        Ok(Stmt::Return(ReturnStmt::new(value)))
     }
 
     fn print_statement(&mut self) -> Result<Stmt, Vec<String>> {

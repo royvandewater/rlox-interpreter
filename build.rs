@@ -25,6 +25,7 @@ const STATEMENTS: &'static RulesList = &[
     "Function   : Token name, Vec<Token> params, Vec<Stmt> body",
     "If         : Expr condition, Stmt then_branch, Stmt else_branch",
     "Print      : Expr expression",
+    "Return     : Expr value",
     "Var        : Token name, Option<Expr> initializer",
     "While      : Expr condition, Stmt body",
 ];
