@@ -2,7 +2,7 @@ use crate::stmt::Stmt;
 use std::fmt::Display;
 
 use super::{Literal, Token};
-use crate::expr::EnvRef;
+use crate::environment::EnvRef;
 
 pub(crate) type Native = fn() -> Literal;
 

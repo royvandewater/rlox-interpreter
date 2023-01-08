@@ -1,26 +1,24 @@
-use std::{cell::RefCell, rc::Rc};
-
-use crate::{environment::Environment, expr::*};
+use crate::{environment::EnvRef, expr::*};
 
 #[allow(dead_code)]
-pub(crate) fn print(expression: Expr) -> String {
-    let env_ref = Rc::new(RefCell::new(Environment::new()));
+pub(crate) fn print(expression: &Expr) -> String {
+    let env_ref = EnvRef::new();
     walk_expr(&mut AstPrinter, env_ref, expression)
 }
 
 struct AstPrinter;
 
 impl AstPrinter {
-    fn parenthesize(&self, name: &str, exprs: Vec<Box<Expr>>) -> String {
+    fn parenthesize(&self, name: &str, exprs: Vec<&Expr>) -> String {
         let mut builder = String::new();
 
         builder.push('(');
         builder.push_str(name);
 
         for expr in exprs {
-            let env_ref = Rc::new(RefCell::new(Environment::new()));
+            let env_ref = EnvRef::new();
             builder.push(' ');
-            builder.push_str(&walk_expr(self, env_ref, *expr))
+            builder.push_str(&walk_expr(self, env_ref, expr))
         }
         builder.push(')');
 
@@ -29,39 +27,35 @@ impl AstPrinter {
 }
 
 impl Visitor<String> for AstPrinter {
-    fn visit_binary(&self, _environment: Rc<RefCell<Environment>>, expr: BinaryExpr) -> String {
-        self.parenthesize(&expr.operator.lexeme, vec![expr.left, expr.right])
+    fn visit_binary(&self, _env_ref: EnvRef, expr: &BinaryExpr) -> String {
+        self.parenthesize(&expr.operator.lexeme, vec![&expr.left, &expr.right])
     }
 
-    fn visit_literal(&self, _environment: Rc<RefCell<Environment>>, expr: LiteralExpr) -> String {
+    fn visit_literal(&self, _env_ref: EnvRef, expr: &LiteralExpr) -> String {
         format!("{}", &expr.value)
     }
 
-    fn visit_grouping(&self, _environment: Rc<RefCell<Environment>>, expr: GroupingExpr) -> String {
-        self.parenthesize("group", vec![expr.expression])
+    fn visit_grouping(&self, _env_ref: EnvRef, expr: &GroupingExpr) -> String {
+        self.parenthesize("group", vec![&expr.expression])
     }
 
-    fn visit_unary(&self, _environment: Rc<RefCell<Environment>>, expr: UnaryExpr) -> String {
-        self.parenthesize(&expr.operator.lexeme, vec![expr.right])
+    fn visit_unary(&self, _env_ref: EnvRef, expr: &UnaryExpr) -> String {
+        self.parenthesize(&expr.operator.lexeme, vec![&expr.right])
     }
 
-    fn visit_variable(
-        &self,
-        _environment: Rc<RefCell<Environment>>,
-        _expr: VariableExpr,
-    ) -> String {
+    fn visit_variable(&self, _env_ref: EnvRef, _expr: &VariableExpr) -> String {
         todo!()
     }
 
-    fn visit_assign(&self, _environment: Rc<RefCell<Environment>>, _expr: AssignExpr) -> String {
+    fn visit_assign(&self, _env_ref: EnvRef, _expr: &AssignExpr) -> String {
         todo!()
     }
 
-    fn visit_logical(&self, _environment: Rc<RefCell<Environment>>, _expr: LogicalExpr) -> String {
+    fn visit_logical(&self, _env_ref: EnvRef, _expr: &LogicalExpr) -> String {
         todo!()
     }
 
-    fn visit_call(&self, _environment: Rc<RefCell<Environment>>, _expr: CallExpr) -> String {
+    fn visit_call(&self, _env_ref: EnvRef, _expr: &CallExpr) -> String {
         todo!()
     }
 }

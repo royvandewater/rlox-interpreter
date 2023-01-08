@@ -1,6 +1,6 @@
 include!(concat!(env!("OUT_DIR"), "/stmt_generated.rs"));
 
-use std::collections::VecDeque;
+use std::collections::{vec_deque::Iter, VecDeque};
 
 #[allow(unused_imports)]
 pub use stmt_generated::*;
@@ -13,11 +13,9 @@ impl From<Vec<Stmt>> for Stmts {
     }
 }
 
-impl Iterator for Stmts {
-    type Item = Stmt;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.pop_front()
+impl Stmts {
+    pub(crate) fn iter(&self) -> Iter<Stmt> {
+        self.0.iter()
     }
 }
 

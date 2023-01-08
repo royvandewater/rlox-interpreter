@@ -6,15 +6,15 @@ mod ast_printer;
 mod environment;
 mod expr;
 mod interpreter;
+mod native;
 mod parser;
+mod resolver;
 mod stmt;
 mod tokens;
 
-use std::{cell::RefCell, env, fs, io, process, rc::Rc};
+use std::{env, fs, io, process};
 
-use environment::Environment;
-use expr::EnvRef;
-use interpreter::{add_clock_to_environment, Interpreter};
+use environment::EnvRef;
 use parser::Parser;
 use stmt::Stmts;
 use tokens::Tokens;
@@ -41,7 +41,9 @@ fn main() {
 }
 
 fn init_env_ref() -> EnvRef {
-    Rc::new(RefCell::new(add_clock_to_environment(Environment::new())))
+    let env_ref = EnvRef::new();
+    native::define_native_functions(env_ref.clone());
+    env_ref
 }
 
 fn run_file(filename: &String) -> Result<(), Vec<String>> {
@@ -66,10 +68,11 @@ fn run_prompt() {
 }
 
 fn run(env_ref: EnvRef, contents: String) -> Result<(), Vec<String>> {
-    let interpreter = Interpreter::new();
     let tokens: Tokens = contents.parse()?;
     let mut parser: Parser = tokens.into();
     let statements: Stmts = parser.parse()?;
 
-    interpreter.interpret(env_ref, statements)
+    // let _locals = resolver::resolve_locals(&statements)?;
+
+    interpreter::interpret(env_ref, &statements)
 }
