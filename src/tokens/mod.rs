@@ -1,12 +1,13 @@
 mod lox_callable;
 mod scanner;
 
-use std::{fmt::Display, slice::Iter, str::FromStr};
+use std::{collections::VecDeque, fmt::Display, str::FromStr};
 
 use self::scanner::Scanner;
 pub(crate) use lox_callable::*;
+use rust_decimal::Decimal;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum TokenType {
     LeftParen,
     RightParen,
@@ -57,10 +58,10 @@ pub(crate) enum TokenType {
     None,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum Literal {
     Nil,
-    Number(f64),
+    Number(Decimal),
     String(String),
     Boolean(bool),
     Callable(LoxCallable),
@@ -78,7 +79,7 @@ impl Display for Literal {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
@@ -114,12 +115,6 @@ impl Display for Token {
 
 pub(crate) struct Tokens(Vec<Token>);
 
-impl Tokens {
-    pub fn iter(&self) -> Iter<Token> {
-        self.0.iter()
-    }
-}
-
 impl FromStr for Tokens {
     type Err = Vec<String>;
 
@@ -127,5 +122,11 @@ impl FromStr for Tokens {
         let tokens = Scanner::new(s).scan_tokens()?;
 
         Ok(Tokens(tokens))
+    }
+}
+
+impl Into<VecDeque<Token>> for Tokens {
+    fn into(self) -> VecDeque<Token> {
+        self.0.into()
     }
 }

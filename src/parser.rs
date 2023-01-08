@@ -1,23 +1,27 @@
 use std::collections::VecDeque;
 
 use crate::stmt::{
-    BlockStmt, ExpressionStmt, FunctionStmt, IfStmt, PrintStmt, ReturnStmt, Stmt, Stmts, VarStmt,
+    BlockStmt, ExpressionStmt, FunctionStmt, IfStmt, PrintStmt, ReturnStmt, Stmt, VarStmt,
     WhileStmt,
 };
 use crate::tokens::{Literal, Token, TokenType, Tokens};
 use crate::{expr, expr::*, stmt};
 
-pub(super) struct Parser(VecDeque<Token>);
+pub(crate) fn parse(tokens: Tokens) -> Result<Vec<Stmt>, Vec<String>> {
+    Parser(tokens.into()).parse()
+}
+
+struct Parser(VecDeque<Token>);
 
 impl Parser {
-    pub(crate) fn parse(&mut self) -> Result<Stmts, Vec<String>> {
+    fn parse(&mut self) -> Result<Vec<Stmt>, Vec<String>> {
         let mut statements: Vec<Stmt> = Vec::new();
 
         while self.peek().is_some() {
             statements.push(self.declaration()?);
         }
 
-        Ok(statements.into())
+        Ok(statements)
     }
 
     fn declaration(&mut self) -> Result<Stmt, Vec<String>> {
@@ -59,7 +63,11 @@ impl Parser {
                     self.advance()?;
                     break;
                 }
-                _ => se("Expect parameter name, comma, or right paren.")?,
+                _ => {
+                    return Err(vec![format!(
+                        "Expect parameter name, comma, or right paren."
+                    )])
+                }
             }
         }
 
@@ -79,9 +87,9 @@ impl Parser {
         let initializer = match self.check(&[TokenType::Equal]) {
             true => {
                 _ = self.advance();
-                Some(self.expression()?)
+                self.expression()?
             }
-            false => None,
+            false => Expr::Literal(LiteralExpr::new(Literal::Nil)),
         };
 
         self.consume(
@@ -459,14 +467,4 @@ impl Parser {
             )])),
         }
     }
-}
-
-impl From<Tokens> for Parser {
-    fn from(tokens: Tokens) -> Self {
-        Parser(tokens.iter().cloned().collect())
-    }
-}
-
-fn se(s: &str) -> Result<(), Vec<String>> {
-    Err(vec![s.to_string()])
 }

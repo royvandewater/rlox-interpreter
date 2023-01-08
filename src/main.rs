@@ -15,8 +15,7 @@ mod tokens;
 use std::{env, fs, io, process};
 
 use environment::EnvRef;
-use parser::Parser;
-use stmt::Stmts;
+use stmt::Stmt;
 use tokens::Tokens;
 
 fn main() {
@@ -69,10 +68,9 @@ fn run_prompt() {
 
 fn run(env_ref: EnvRef, contents: String) -> Result<(), Vec<String>> {
     let tokens: Tokens = contents.parse()?;
-    let mut parser: Parser = tokens.into();
-    let statements: Stmts = parser.parse()?;
+    let statements: Vec<Stmt> = parser::parse(tokens)?;
 
-    // let _locals = resolver::resolve_locals(&statements)?;
+    let locals = resolver::resolve_locals(&statements)?;
 
-    interpreter::interpret(env_ref, &statements)
+    interpreter::interpret(env_ref, locals, &statements)
 }

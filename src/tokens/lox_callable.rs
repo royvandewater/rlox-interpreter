@@ -6,7 +6,7 @@ use crate::environment::EnvRef;
 
 pub(crate) type Native = fn() -> Literal;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct Function {
     pub body: Vec<Stmt>,
     pub params: Vec<Token>,
@@ -23,13 +23,13 @@ impl Function {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum Callable {
     Native(Native),
     Function(Function),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct LoxCallable {
     pub name: String,
     pub callable: Callable,

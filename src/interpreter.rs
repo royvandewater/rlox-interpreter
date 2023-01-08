@@ -1,5 +1,6 @@
 use crate::environment::EnvRef;
 use crate::expr::*;
+use crate::resolver::Locals;
 use crate::stmt::*;
 use crate::tokens::{Callable, Function, LoxCallable, TokenType};
 use crate::{expr, tokens::Literal};
@@ -12,21 +13,29 @@ enum Error {
     SingleError(String),
 }
 
+use rust_decimal::prelude::FromPrimitive;
+use rust_decimal::Decimal;
 use Error::ReturnValue;
 use Error::SingleError;
 
-pub(crate) fn interpret(env_ref: EnvRef, statements: &Stmts) -> Result<(), Vec<String>> {
-    Interpreter::new().interpret(env_ref, statements)
+pub(crate) fn interpret(
+    env_ref: EnvRef,
+    locals: Locals,
+    statements: &Vec<Stmt>,
+) -> Result<(), Vec<String>> {
+    Interpreter::new(locals).interpret(env_ref, statements)
 }
 
-struct Interpreter;
+struct Interpreter {
+    locals: Locals,
+}
 
 impl Interpreter {
-    fn new() -> Interpreter {
-        Interpreter {}
+    fn new(locals: Locals) -> Interpreter {
+        Interpreter { locals }
     }
 
-    fn interpret(&self, env_ref: EnvRef, statements: &Stmts) -> Result<(), Vec<String>> {
+    fn interpret(&self, env_ref: EnvRef, statements: &Vec<Stmt>) -> Result<(), Vec<String>> {
         for statement in statements.iter() {
             match self.execute(env_ref.clone(), statement) {
                 Ok(_) => (),
@@ -91,6 +100,26 @@ impl Interpreter {
             }
         }
     }
+
+    fn look_up_variable(
+        &self,
+        env_ref: EnvRef,
+        name: &str,
+        expr: &VariableExpr,
+    ) -> Result<Literal, Error> {
+        let value = match self.locals.get(&Expr::Variable(expr.clone())) {
+            None => env_ref.get_global(name),
+            Some(distance) => env_ref.get_at_distance(distance, name),
+        };
+
+        match value {
+            None => Err(SingleError(format!(
+                "variable with name '{}' not defined",
+                &expr.name.lexeme
+            ))),
+            Some(literal) => Ok(literal),
+        }
+    }
 }
 
 impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
@@ -98,7 +127,12 @@ impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
         let name = &expression.name.lexeme.to_string();
         let value = self.evaluate(env_ref.clone(), &expression.value)?;
 
-        match env_ref.assign(&name, value.clone()) {
+        let result = match self.locals.get(&Expr::Assign(expression.clone())) {
+            Some(distance) => env_ref.assign_at_distance(distance, name, value.clone()),
+            None => env_ref.assign_global(name, value.clone()),
+        };
+
+        match result {
             Ok(_) => Ok(value),
             Err(e) => Err(Error::SingleError(e)),
         }
@@ -178,13 +212,7 @@ impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
     }
 
     fn visit_variable(&self, env_ref: EnvRef, expr: &VariableExpr) -> Result<Literal, Error> {
-        match env_ref.get(&expr.name.lexeme) {
-            None => Err(SingleError(format!(
-                "variable with name '{}' not defined",
-                &expr.name.lexeme
-            ))),
-            Some(literal) => Ok(literal),
-        }
+        self.look_up_variable(env_ref, &expr.name.lexeme, expr)
     }
 
     fn visit_unary(&self, env_ref: EnvRef, expr: &UnaryExpr) -> Result<Literal, Error> {
@@ -192,7 +220,9 @@ impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
 
         match (expr.operator.token_type, right) {
             (TokenType::Bang, v) => Ok(Literal::Boolean(!evaluate_truthy(&v))),
-            (TokenType::Minus, Literal::Number(n)) => Ok(Literal::Number(-1.0 * n)),
+            (TokenType::Minus, Literal::Number(n)) => {
+                Ok(Literal::Number(n * Decimal::from_isize(-1).unwrap()))
+            }
             (TokenType::Minus, v) => Err(SingleError(format!(
                 "Invalid attempt to perform numerical negation on non-number: {}",
                 v
@@ -253,11 +283,7 @@ impl crate::stmt::Visitor<EnvRef, Result<(), Error>> for Interpreter {
     }
 
     fn visit_var(&self, mut env_ref: EnvRef, stmt: &VarStmt) -> Result<(), Error> {
-        let value = match &stmt.initializer {
-            Some(expression) => self.evaluate(env_ref.clone(), expression)?,
-            None => Literal::Nil,
-        };
-
+        let value = self.evaluate(env_ref.clone(), &stmt.initializer)?;
         env_ref.define(&stmt.name.lexeme, value);
         Ok(())
     }

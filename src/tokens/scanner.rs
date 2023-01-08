@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use rust_decimal::Decimal;
+
 use super::{Literal, Token, TokenType};
 
 lazy_static! {
@@ -166,7 +168,7 @@ impl Scanner {
             }
         }
 
-        let value: f64 = self.source[self.start..self.current]
+        let value: Decimal = self.source[self.start..self.current]
             .parse()
             .map_err(|e| format!("Failed to parse number: {}", e))?;
 

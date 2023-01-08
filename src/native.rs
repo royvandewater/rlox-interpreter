@@ -1,5 +1,7 @@
 use std::time::SystemTime;
 
+use rust_decimal::{prelude::FromPrimitive, Decimal};
+
 use crate::{
     environment::EnvRef,
     tokens::{Callable, Literal, LoxCallable},
@@ -17,7 +19,8 @@ fn define_clock(mut env_ref: EnvRef) {
             Callable::Native(|| {
                 let now = SystemTime::now();
                 let duration = now.duration_since(SystemTime::UNIX_EPOCH).unwrap();
-                Literal::Number(duration.as_secs_f64())
+
+                Literal::Number(Decimal::from_f64(duration.as_secs_f64()).unwrap())
             }),
         )),
     );
