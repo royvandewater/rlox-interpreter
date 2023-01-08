@@ -5,6 +5,7 @@ use crate::{
     stmt::{self, *},
 };
 
+#[derive(Debug)]
 pub(crate) struct Scopes(Vec<HashMap<String, bool>>);
 
 impl Scopes {
@@ -34,14 +35,10 @@ impl Scopes {
         }
     }
 
-    fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    fn get(&self, name: &str) -> bool {
+    fn get(&self, name: &str) -> Option<bool> {
         match self.0.last() {
-            None => false,
-            Some(map) => *map.get(name).unwrap_or(&false),
+            None => None,
+            Some(map) => map.get(name).cloned(),
         }
     }
 
@@ -304,10 +301,15 @@ impl expr::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for 
         (scopes, locals): (Scopes, Locals),
         expr: &VariableExpr,
     ) -> Result<(Scopes, Locals), Vec<String>> {
-        if !scopes.is_empty() && !scopes.get(&expr.name.lexeme) {
-            return Err(vec![format!(
-                "Can't read local variable in its own initializer."
-            )]);
+        println!("looking for {} in scopes: {:?}", &expr.name.lexeme, scopes);
+        let name = &expr.name.lexeme;
+        match scopes.get(name) {
+            Some(v) if v == false => {
+                return Err(vec![format!(
+                    "Can't read local variable in its own initializer."
+                )]);
+            }
+            _ => (),
         }
 
         self.resolve_local(
