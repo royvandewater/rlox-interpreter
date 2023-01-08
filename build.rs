@@ -38,7 +38,6 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn define_ast(base: &str, rules: &RulesList) -> anyhow::Result<()> {
-    let env_ref = rust::import("crate::environment", "EnvRef");
     let token = rust::import("crate::tokens", "Token");
 
     let base_snake = &base.to_case(Case::Snake);
@@ -46,12 +45,11 @@ fn define_ast(base: &str, rules: &RulesList) -> anyhow::Result<()> {
 
     let tokens: rust::Tokens = quote! {
         mod $(base_snake)_generated {
-            type EnvRef = super::$env_ref;
-
             type Token = super::$token;
+
             $(optional_imports(base_snake))
 
-            pub(crate) trait Visitor<T> {
+            pub(crate) trait Visitor<P, T> {
                 $(define_visitor_trait(base_title, base_snake, rules))
             }
 
@@ -60,7 +58,7 @@ fn define_ast(base: &str, rules: &RulesList) -> anyhow::Result<()> {
                 $(define_enum(base_title, rules))
             }
 
-            pub(crate) fn walk_$(base_snake)<T>(visitor: &dyn Visitor<T>, env_ref: EnvRef, $(base_snake): &$(base_title)) -> T {
+            pub(crate) fn walk_$(base_snake)<P, T>(visitor: &dyn Visitor<P, T>, p: P, $(base_snake): &$(base_title)) -> T {
                 match $(base_snake) {
                     $(define_walk(base_title, rules))
                 }
@@ -114,7 +112,7 @@ fn define_visitor_trait(base_title: &str, base_snake: &str, rules: &RulesList) -
         let token_title = &raw_token_name.to_case(Case::Title);
 
         tokens.append(quote! {
-            fn visit_$token_snake(&self, env_ref: EnvRef, $base_snake: &$token_title$base_title) -> T;
+            fn visit_$token_snake(&self, p: P, $base_snake: &$token_title$base_title) -> T;
         });
     }
 
@@ -143,10 +141,9 @@ fn define_walk(base_title: &str, rules: &RulesList) -> Tokens {
 
         let var = &raw_token_name.to_case(Case::Snake);
         let class = &raw_token_name.to_case(Case::Title);
-        let c = &var.chars().next().unwrap().to_string();
 
         tokens.append(quote! {
-            $(base_title)::$class($c) => visitor.visit_$var(env_ref, &$c),
+            $(base_title)::$class(v) => visitor.visit_$var(p, &v),
         })
     }
 

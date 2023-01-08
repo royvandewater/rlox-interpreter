@@ -93,7 +93,7 @@ impl Interpreter {
     }
 }
 
-impl expr::Visitor<Result<Literal, Error>> for Interpreter {
+impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
     fn visit_assign(&self, mut env_ref: EnvRef, expression: &AssignExpr) -> Result<Literal, Error> {
         let name = &expression.name.lexeme.to_string();
         let value = self.evaluate(env_ref.clone(), &expression.value)?;
@@ -205,7 +205,7 @@ impl expr::Visitor<Result<Literal, Error>> for Interpreter {
     }
 }
 
-impl crate::stmt::Visitor<Result<(), Error>> for Interpreter {
+impl crate::stmt::Visitor<EnvRef, Result<(), Error>> for Interpreter {
     fn visit_block<'a>(&self, env_ref: EnvRef, stmt: &BlockStmt) -> Result<(), Error> {
         let scope_ref = EnvRef::with_enclosing(env_ref);
 
