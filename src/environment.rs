@@ -8,7 +8,7 @@ struct Inner {
     values: BTreeMap<String, Literal>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub(crate) struct EnvRef(Rc<RefCell<Inner>>);
 
 impl EnvRef {
@@ -38,7 +38,10 @@ impl EnvRef {
     ) -> Result<(), String> {
         match distance {
             0 => self.assign_current(name, value),
-            _ => self.assign_at_distance(distance - 1, name, value),
+            _ => match &mut self.0.borrow_mut().enclosing {
+                None => panic!("Tried to assign outside of the scope cactus"),
+                Some(e) => e.assign_at_distance(distance - 1, name, value),
+            },
         }
     }
 
@@ -69,7 +72,10 @@ impl EnvRef {
     pub fn get_at_distance(&self, distance: usize, name: &str) -> Option<Literal> {
         match distance {
             0 => self.get_current(name),
-            _ => self.get_at_distance(distance - 1, name),
+            _ => match &self.0.borrow().enclosing {
+                Some(e) => e.get_at_distance(distance - 1, name),
+                None => panic!("Tried to find variable outside the scope cactus"),
+            },
         }
     }
 
@@ -82,6 +88,16 @@ impl EnvRef {
             Some(e) => e.get_global(name),
             None => self.get_current(name),
         }
+    }
+}
+
+impl std::fmt::Debug for EnvRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let inner = self.0.borrow();
+        f.debug_struct("EnvRef")
+            .field("values", &inner.values)
+            .field("enclosing", &inner.enclosing)
+            .finish()
     }
 }
 

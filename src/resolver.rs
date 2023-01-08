@@ -301,7 +301,6 @@ impl expr::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for 
         (scopes, locals): (Scopes, Locals),
         expr: &VariableExpr,
     ) -> Result<(Scopes, Locals), Vec<String>> {
-        println!("looking for {} in scopes: {:?}", &expr.name.lexeme, scopes);
         let name = &expr.name.lexeme;
         match scopes.get(name) {
             Some(v) if v == false => {

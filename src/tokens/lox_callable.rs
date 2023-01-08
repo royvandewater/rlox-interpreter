@@ -1,5 +1,5 @@
 use crate::stmt::Stmt;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 
 use super::{Literal, Token};
 use crate::environment::EnvRef;
@@ -29,7 +29,7 @@ pub(crate) enum Callable {
     Function(Function),
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Eq, Hash, PartialEq)]
 pub(crate) struct LoxCallable {
     pub name: String,
     pub callable: Callable,
@@ -51,5 +51,13 @@ impl LoxCallable {
 impl Display for LoxCallable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!("<fn {}>", self.name))
+    }
+}
+
+impl Debug for LoxCallable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LoxCallable")
+            .field("name", &self.name)
+            .finish()
     }
 }

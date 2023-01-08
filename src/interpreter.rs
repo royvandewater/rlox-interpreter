@@ -8,6 +8,7 @@ use crate::{expr, tokens::Literal};
 use Literal as L;
 use TokenType as TT;
 
+#[derive(Debug)]
 enum Error {
     ReturnValue(Literal),
     SingleError(String),
