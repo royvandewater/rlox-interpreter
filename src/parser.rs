@@ -380,9 +380,19 @@ impl Parser {
     fn call(&mut self) -> Result<Expr, Vec<String>> {
         let mut expr = self.primary()?;
 
-        while TokenType::LeftParen == self.peek_token_type() {
-            self.advance()?;
-            expr = self.finish_call(expr)?;
+        loop {
+            match self.peek_token_type() {
+                TokenType::LeftParen => {
+                    self.advance()?;
+                    expr = self.finish_call(expr)?;
+                }
+                TokenType::Dot => {
+                    let name =
+                        self.consume(TokenType::Identifier, "Expect property name after '.'")?;
+                    expr = Expr::Get(GetExpr::new(expr, name))
+                }
+                _ => break,
+            }
         }
 
         Ok(expr)

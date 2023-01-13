@@ -65,7 +65,7 @@ pub(crate) enum Literal {
     Nil,
     Boolean(bool),
     Callable(LoxCallable),
-    Class(LoxInstance),
+    ClassInstance(LoxInstance),
     Number(Decimal),
     String(String),
 }
@@ -76,7 +76,7 @@ impl Display for Literal {
             Literal::Nil => f.write_str("nil"),
             Literal::Boolean(b) => f.write_fmt(format_args!("{}", b)),
             Literal::Callable(c) => f.write_fmt(format_args!("{}", c)),
-            Literal::Class(c) => f.write_fmt(format_args!("{}", c)),
+            Literal::ClassInstance(c) => f.write_fmt(format_args!("{}", c)),
             Literal::Number(n) => f.write_fmt(format_args!("{}", n)),
             Literal::String(s) => f.write_str(s.as_str()),
         }

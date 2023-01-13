@@ -56,4 +56,8 @@ impl Visitor<(), String> for AstPrinter {
     fn visit_call(&self, _: (), _expr: &CallExpr) -> String {
         todo!()
     }
+
+    fn visit_get(&self, _: (), _expr: &GetExpr) -> String {
+        todo!()
+    }
 }

@@ -269,6 +269,14 @@ impl expr::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for 
         Ok(bundle)
     }
 
+    fn visit_get(
+        &self,
+        bundle: (Scopes, Locals),
+        expr: &GetExpr,
+    ) -> Result<(Scopes, Locals), Vec<String>> {
+        self.resolve_expression(bundle, &expr.object)
+    }
+
     fn visit_grouping(
         &self,
         bundle: (Scopes, Locals),

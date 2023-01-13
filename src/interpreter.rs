@@ -89,7 +89,7 @@ impl Interpreter {
         }
 
         match &callable.callable {
-            Callable::Class(c) => Ok(Literal::Class(LoxInstance::new(c.clone()))),
+            Callable::Class(c) => Ok(Literal::ClassInstance(LoxInstance::new(c.clone()))),
             Callable::Function(f) => {
                 let mut env_ref = EnvRef::with_enclosing(f.env_ref.clone());
 
@@ -190,6 +190,15 @@ impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
             _ => Err(SingleError(format!(
                 "visit_call called with non function literal callee"
             ))),
+        }
+    }
+
+    fn visit_get(&self, env_ref: EnvRef, expr: &GetExpr) -> Result<Literal, Error> {
+        match self.evaluate(env_ref, &expr.object)? {
+            L::ClassInstance(i) => Ok(i.get(&expr.name.lexeme)?),
+            _ => Err(Error::SingleError(
+                "Only instances have properties.".to_string(),
+            )),
         }
     }
 
