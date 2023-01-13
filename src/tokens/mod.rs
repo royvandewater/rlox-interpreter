@@ -1,10 +1,12 @@
 mod lox_callable;
+mod lox_instance;
 mod scanner;
 
 use std::{collections::VecDeque, fmt::Display, str::FromStr};
 
 use self::scanner::Scanner;
 pub(crate) use lox_callable::*;
+pub(crate) use lox_instance::*;
 use rust_decimal::Decimal;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -61,20 +63,22 @@ pub(crate) enum TokenType {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum Literal {
     Nil,
-    Number(Decimal),
-    String(String),
     Boolean(bool),
     Callable(LoxCallable),
+    Class(LoxInstance),
+    Number(Decimal),
+    String(String),
 }
 
 impl Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Literal::Nil => f.write_str("nil"),
-            Literal::Number(n) => f.write_fmt(format_args!("{}", n)),
-            Literal::String(s) => f.write_str(s.as_str()),
             Literal::Boolean(b) => f.write_fmt(format_args!("{}", b)),
             Literal::Callable(c) => f.write_fmt(format_args!("{}", c)),
+            Literal::Class(c) => f.write_fmt(format_args!("{}", c)),
+            Literal::Number(n) => f.write_fmt(format_args!("{}", n)),
+            Literal::String(s) => f.write_str(s.as_str()),
         }
     }
 }

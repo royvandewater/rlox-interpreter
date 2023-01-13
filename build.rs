@@ -21,6 +21,7 @@ const EXPRESSIONS: &'static RulesList = &[
 
 const STATEMENTS: &'static RulesList = &[
     "Block      : Vec<Stmt> statements",
+    "Class      : Token name, Vec<FunctionStmt> methods",
     "Expression : Expr expression",
     "Function   : Token name, Vec<Token> params, Vec<Stmt> body",
     "If         : Expr condition, Stmt then_branch, Stmt else_branch",

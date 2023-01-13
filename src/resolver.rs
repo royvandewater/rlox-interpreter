@@ -152,6 +152,16 @@ impl stmt::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for 
         Ok((scopes, locals))
     }
 
+    fn visit_class(
+        &self,
+        (mut scopes, locals): (Scopes, Locals),
+        stmt: &ClassStmt,
+    ) -> Result<(Scopes, Locals), Vec<String>> {
+        scopes.declare(stmt.name.lexeme.clone());
+        scopes.define(stmt.name.lexeme.clone());
+        Ok((scopes, locals))
+    }
+
     fn visit_expression(
         &self,
         bundle: (Scopes, Locals),

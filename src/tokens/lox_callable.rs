@@ -4,7 +4,16 @@ use std::fmt::{Debug, Display};
 use super::{Literal, Token};
 use crate::environment::EnvRef;
 
-pub(crate) type Native = fn() -> Literal;
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub(crate) struct Class {
+    pub name: String,
+}
+
+impl Class {
+    pub(crate) fn new(name: String) -> Self {
+        Self { name }
+    }
+}
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct Function {
@@ -23,10 +32,13 @@ impl Function {
     }
 }
 
+pub(crate) type Native = fn() -> Literal;
+
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum Callable {
-    Native(Native),
+    Class(Class),
     Function(Function),
+    Native(Native),
 }
 
 #[derive(Clone, Eq, Hash, PartialEq)]
@@ -42,16 +54,22 @@ impl LoxCallable {
 
     pub fn arity(&self) -> usize {
         match &self.callable {
-            Callable::Native(_) => 0,
+            Callable::Class(_) => 0,
             Callable::Function(f) => f.params.len(),
+            Callable::Native(_) => 0,
         }
     }
 }
 
 impl Display for LoxCallable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("<fn {}>", self.name))
+        f.write_str(&match self.callable {
+            Callable::Class(_) => format!("<class {}>", self.name),
+            Callable::Function(_) => format!("<fn {}>", self.name),
+            Callable::Native(_) => todo!("<native-fn {}>", self.name),
+        })
     }
+    // format_args!("<fn {}>", self.name)
 }
 
 impl Debug for LoxCallable {

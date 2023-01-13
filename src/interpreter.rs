@@ -2,7 +2,7 @@ use crate::environment::EnvRef;
 use crate::expr::*;
 use crate::resolver::Locals;
 use crate::stmt::*;
-use crate::tokens::{Callable, Function, LoxCallable, TokenType};
+use crate::tokens::{Callable, Class, Function, LoxCallable, LoxInstance, TokenType};
 use crate::{expr, tokens::Literal};
 
 use Literal as L;
@@ -12,6 +12,12 @@ use TokenType as TT;
 enum Error {
     ReturnValue(Literal),
     SingleError(String),
+}
+
+impl From<String> for Error {
+    fn from(e: String) -> Self {
+        Error::SingleError(e)
+    }
 }
 
 use rust_decimal::prelude::FromPrimitive;
@@ -83,7 +89,7 @@ impl Interpreter {
         }
 
         match &callable.callable {
-            Callable::Native(n) => Ok(n()),
+            Callable::Class(c) => Ok(Literal::Class(LoxInstance::new(c.clone()))),
             Callable::Function(f) => {
                 let mut env_ref = EnvRef::with_enclosing(f.env_ref.clone());
 
@@ -99,6 +105,7 @@ impl Interpreter {
                     },
                 }
             }
+            Callable::Native(n) => Ok(n()),
         }
     }
 
@@ -128,15 +135,12 @@ impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
         let name = &expression.name.lexeme.to_string();
         let value = self.evaluate(env_ref.clone(), &expression.value)?;
 
-        let result = match self.locals.get(&Expr::Assign(expression.clone())) {
+        match self.locals.get(&Expr::Assign(expression.clone())) {
             Some(distance) => env_ref.assign_at_distance(distance, name, value.clone()),
             None => env_ref.assign_global(name, value.clone()),
-        };
+        }?;
 
-        match result {
-            Ok(_) => Ok(value),
-            Err(e) => Err(Error::SingleError(e)),
-        }
+        Ok(value)
     }
 
     fn visit_binary(&self, env_ref: EnvRef, expr: &BinaryExpr) -> Result<Literal, Error> {
@@ -242,6 +246,15 @@ impl crate::stmt::Visitor<EnvRef, Result<(), Error>> for Interpreter {
 
         self.execute_block(scope_ref, &stmt.statements)?;
 
+        Ok(())
+    }
+
+    fn visit_class(&self, mut env_ref: EnvRef, stmt: &ClassStmt) -> Result<(), Error> {
+        let name = stmt.name.lexeme.clone();
+
+        env_ref.define(&name, L::Nil);
+        let class = LoxCallable::new(name.clone(), Callable::Class(Class::new(name.clone())));
+        env_ref.assign(&name, Literal::Callable(class))?;
         Ok(())
     }
 

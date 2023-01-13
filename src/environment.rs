@@ -30,6 +30,16 @@ impl EnvRef {
         self.0.borrow_mut().values.insert(name.to_string(), value);
     }
 
+    pub(crate) fn assign(&mut self, name: &str, value: Literal) -> Result<(), String> {
+        match self.get_current(name) {
+            Some(_) => self.assign_current(name, value),
+            None => match &mut self.0.borrow_mut().enclosing {
+                Some(e) => e.assign(name, value),
+                None => Err(format!("Undefined variable '{}'.", name)),
+            },
+        }
+    }
+
     pub(crate) fn assign_at_distance(
         &mut self,
         distance: usize,

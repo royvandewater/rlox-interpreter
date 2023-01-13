@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 
 use crate::stmt::{
-    BlockStmt, ExpressionStmt, FunctionStmt, IfStmt, PrintStmt, ReturnStmt, Stmt, VarStmt,
-    WhileStmt,
+    BlockStmt, ClassStmt, ExpressionStmt, FunctionStmt, IfStmt, PrintStmt, ReturnStmt, Stmt,
+    VarStmt, WhileStmt,
 };
 use crate::tokens::{Literal, Token, TokenType, Tokens};
 use crate::{expr, expr::*, stmt};
@@ -27,6 +27,10 @@ impl Parser {
     fn declaration(&mut self) -> Result<Stmt, Vec<String>> {
         let next_token = self.peek().unwrap();
         match next_token.token_type {
+            TokenType::Class => {
+                _ = self.advance();
+                self.class_declaration()
+            }
             TokenType::Fun => {
                 _ = self.advance();
                 self.function("function")
@@ -37,6 +41,27 @@ impl Parser {
             }
             _ => self.statement(),
         }
+    }
+
+    fn class_declaration(&mut self) -> Result<Stmt, Vec<String>> {
+        let name = self.consume(TokenType::Identifier, "Expect class name")?;
+        self.consume(TokenType::LeftBrace, "Expect '{' before class body")?;
+
+        let mut methods: Vec<FunctionStmt> = Vec::new();
+
+        while self.peek().is_some() && !self.check_one(TokenType::RightBrace) {
+            match self.function("method")? {
+                Stmt::Function(f) => methods.push(f),
+                v => Err(vec![format!(
+                    "Expected function to return a function, returned: {:?}",
+                    v
+                )])?,
+            }
+        }
+
+        self.consume(TokenType::RightBrace, "Expect '}' after class body.")?;
+
+        Ok(Stmt::Class(ClassStmt::new(name, methods)))
     }
 
     fn function(&mut self, kind: &str) -> Result<Stmt, Vec<String>> {
