@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::environment::EnvRef;
 use crate::expr::*;
 use crate::resolver::Locals;
@@ -277,9 +279,19 @@ impl crate::stmt::Visitor<EnvRef, Result<(), Error>> for Interpreter {
 
     fn visit_class(&self, mut env: EnvRef, stmt: &ClassStmt) -> Result<(), Error> {
         let name = stmt.name.lexeme.clone();
-
         env.define(&name, L::Nil);
-        let class = LoxCallable::new(name.clone(), Callable::Class(Class::new(name.clone())));
+
+        let mut methods: BTreeMap<String, Function> = BTreeMap::new();
+
+        for method in stmt.methods.iter() {
+            let function = Function::new(method.body.clone(), method.params.clone(), env.clone());
+            methods.insert(method.name.lexeme.clone(), function);
+        }
+
+        let class = LoxCallable::new(
+            name.clone(),
+            Callable::Class(Class::new(name.clone(), methods)),
+        );
         env.assign(&name, Literal::Callable(class))?;
         Ok(())
     }

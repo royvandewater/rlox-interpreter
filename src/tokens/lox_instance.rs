@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::BTreeMap, fmt::Display, rc::Rc};
 
-use super::{Class, Literal};
+use super::{Callable, Class, Literal, LoxCallable};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct Inner {
@@ -21,14 +21,28 @@ impl LoxInstance {
 
     pub(crate) fn get(&self, name: &str) -> Result<Literal, String> {
         let inner = &self.0.borrow().fields;
-        inner.get(name).cloned().ok_or(format!(
-            "No property with name '{}' in fields: {:?}",
-            name, inner,
-        ))
+
+        inner
+            .get(name)
+            .cloned()
+            .or_else(|| self.find_method(name))
+            .ok_or(format!(
+                "No property with name '{}' in fields: {:?}",
+                name, inner,
+            ))
     }
 
     pub(crate) fn set(&mut self, name: &str, value: Literal) {
         self.0.borrow_mut().fields.insert(name.to_string(), value);
+    }
+
+    fn find_method(&self, name: &str) -> Option<Literal> {
+        self.0.borrow().class.methods.get(name).map(|f| {
+            Literal::Callable(LoxCallable::new(
+                name.to_string(),
+                Callable::Function(f.clone()),
+            ))
+        })
     }
 }
 

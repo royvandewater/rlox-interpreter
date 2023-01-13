@@ -1,5 +1,8 @@
 use crate::stmt::Stmt;
-use std::fmt::{Debug, Display};
+use std::{
+    collections::BTreeMap,
+    fmt::{Debug, Display},
+};
 
 use super::{Literal, Token};
 use crate::environment::EnvRef;
@@ -7,11 +10,12 @@ use crate::environment::EnvRef;
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct Class {
     pub name: String,
+    pub methods: BTreeMap<String, Function>,
 }
 
 impl Class {
-    pub(crate) fn new(name: String) -> Self {
-        Self { name }
+    pub(crate) fn new(name: String, methods: BTreeMap<String, Function>) -> Self {
+        Self { name, methods }
     }
 }
 

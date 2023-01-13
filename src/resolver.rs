@@ -154,11 +154,16 @@ impl stmt::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for 
 
     fn visit_class(
         &self,
-        (mut scopes, locals): (Scopes, Locals),
+        (mut scopes, mut locals): (Scopes, Locals),
         stmt: &ClassStmt,
     ) -> Result<(Scopes, Locals), Vec<String>> {
         scopes.declare(stmt.name.lexeme.clone());
         scopes.define(stmt.name.lexeme.clone());
+
+        for method in stmt.methods.iter() {
+            (scopes, locals) = self.resolve_function((scopes, locals), method)?;
+        }
+
         Ok((scopes, locals))
     }
 
