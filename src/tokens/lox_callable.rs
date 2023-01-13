@@ -4,7 +4,7 @@ use std::{
     fmt::{Debug, Display},
 };
 
-use super::{Literal, Token};
+use super::{Literal, LoxInstance, Token};
 use crate::environment::EnvRef;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -33,6 +33,12 @@ impl Function {
             params,
             env_ref,
         }
+    }
+
+    pub(crate) fn bind(&self, instance: LoxInstance) -> Function {
+        let mut env = EnvRef::with_enclosing(self.env_ref.clone());
+        env.define("this", Literal::ClassInstance(instance));
+        Function::new(self.body.clone(), self.params.clone(), env)
     }
 }
 

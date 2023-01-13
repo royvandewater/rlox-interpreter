@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::BTreeMap, fmt::Display, rc::Rc};
 
-use super::{Callable, Class, Literal, LoxCallable};
+use super::{Callable, Class, Function, Literal, LoxCallable};
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct Inner {
@@ -20,29 +20,24 @@ impl LoxInstance {
     }
 
     pub(crate) fn get(&self, name: &str) -> Result<Literal, String> {
-        let inner = &self.0.borrow().fields;
-
-        inner
-            .get(name)
-            .cloned()
-            .or_else(|| self.find_method(name))
-            .ok_or(format!(
-                "No property with name '{}' in fields: {:?}",
-                name, inner,
-            ))
+        match self.0.borrow().fields.get(name) {
+            Some(value) => Ok(value.clone()),
+            None => match self.find_method(name) {
+                None => Err(format!("Undefined property: '{}'", name)),
+                Some(method) => Ok(Literal::Callable(LoxCallable::new(
+                    name.to_string(),
+                    Callable::Function(method.bind(self.clone())),
+                ))),
+            },
+        }
     }
 
     pub(crate) fn set(&mut self, name: &str, value: Literal) {
         self.0.borrow_mut().fields.insert(name.to_string(), value);
     }
 
-    fn find_method(&self, name: &str) -> Option<Literal> {
-        self.0.borrow().class.methods.get(name).map(|f| {
-            Literal::Callable(LoxCallable::new(
-                name.to_string(),
-                Callable::Function(f.clone()),
-            ))
-        })
+    fn find_method(&self, name: &str) -> Option<Function> {
+        self.0.borrow().class.methods.get(name).cloned()
     }
 }
 

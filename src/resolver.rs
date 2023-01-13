@@ -35,6 +35,10 @@ impl Scopes {
         }
     }
 
+    fn force_define(&mut self, name: String) {
+        self.0.last_mut().unwrap().insert(name, true);
+    }
+
     fn get(&self, name: &str) -> Option<bool> {
         match self.0.last() {
             None => None,
@@ -160,9 +164,14 @@ impl stmt::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for 
         scopes.declare(stmt.name.lexeme.clone());
         scopes.define(stmt.name.lexeme.clone());
 
+        scopes.begin_scope();
+        scopes.force_define("this".to_string());
+
         for method in stmt.methods.iter() {
             (scopes, locals) = self.resolve_function((scopes, locals), method)?;
         }
+
+        scopes.end_scope();
 
         Ok((scopes, locals))
     }
@@ -318,6 +327,18 @@ impl expr::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for 
         let bundle = self.resolve_expression(bundle, &expr.object)?;
 
         Ok(bundle)
+    }
+
+    fn visit_this(
+        &self,
+        bundle: (Scopes, Locals),
+        expr: &ThisExpr,
+    ) -> Result<(Scopes, Locals), Vec<String>> {
+        self.resolve_local(
+            bundle,
+            Expr::Variable(VariableExpr::new(expr.keyword.clone())),
+            &expr.keyword.lexeme,
+        )
     }
 
     fn visit_unary(

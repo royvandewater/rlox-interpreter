@@ -64,4 +64,8 @@ impl Visitor<(), String> for AstPrinter {
     fn visit_set(&self, _: (), _expr: &SetExpr) -> String {
         todo!()
     }
+
+    fn visit_this(&self, _: (), _expr: &ThisExpr) -> String {
+        todo!()
+    }
 }

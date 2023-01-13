@@ -432,6 +432,7 @@ impl Parser {
             TokenType::Number => Expr::Literal(LiteralExpr::new(next_token.literal)),
             TokenType::String => Expr::Literal(LiteralExpr::new(next_token.literal)),
             TokenType::Identifier => Expr::Variable(VariableExpr::new(next_token)),
+            TokenType::This => Expr::This(ThisExpr::new(next_token)),
             TokenType::LeftParen => {
                 let inner_expression = self.expression()?;
                 self.consume(TokenType::RightParen, "Expect ')' after expression")?;

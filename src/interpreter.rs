@@ -244,6 +244,14 @@ impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
         Ok(value)
     }
 
+    fn visit_this(&self, env: EnvRef, expr: &ThisExpr) -> Result<Literal, Error> {
+        self.look_up_variable(
+            env,
+            &expr.keyword.lexeme,
+            &VariableExpr::new(expr.keyword.clone()),
+        )
+    }
+
     fn visit_unary(&self, env: EnvRef, expr: &UnaryExpr) -> Result<Literal, Error> {
         let right = self.evaluate(env, &expr.right)?;
 
