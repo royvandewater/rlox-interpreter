@@ -274,6 +274,7 @@ impl Parser {
             let value = self.assignment()?;
 
             return match expr {
+                Expr::Get(g) => Ok(Expr::Set(SetExpr::new(*g.object, g.name, value))),
                 Expr::Variable(v) => {
                     let name = v.name;
                     Ok(Expr::Assign(AssignExpr::new(name, value)))
@@ -387,6 +388,7 @@ impl Parser {
                     expr = self.finish_call(expr)?;
                 }
                 TokenType::Dot => {
+                    self.advance()?;
                     let name =
                         self.consume(TokenType::Identifier, "Expect property name after '.'")?;
                     expr = Expr::Get(GetExpr::new(expr, name))

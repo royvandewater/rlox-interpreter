@@ -295,11 +295,22 @@ impl expr::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for 
 
     fn visit_logical(
         &self,
-        mut bundle: (Scopes, Locals),
+        bundle: (Scopes, Locals),
         expr: &LogicalExpr,
     ) -> Result<(Scopes, Locals), Vec<String>> {
-        bundle = self.resolve_expression(bundle, &expr.left)?;
-        bundle = self.resolve_expression(bundle, &expr.right)?;
+        let bundle = self.resolve_expression(bundle, &expr.left)?;
+        let bundle = self.resolve_expression(bundle, &expr.right)?;
+
+        Ok(bundle)
+    }
+
+    fn visit_set(
+        &self,
+        bundle: (Scopes, Locals),
+        expr: &SetExpr,
+    ) -> Result<(Scopes, Locals), Vec<String>> {
+        let bundle = self.resolve_expression(bundle, &expr.value)?;
+        let bundle = self.resolve_expression(bundle, &expr.object)?;
 
         Ok(bundle)
     }

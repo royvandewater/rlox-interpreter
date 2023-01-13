@@ -17,7 +17,14 @@ impl LoxInstance {
     }
 
     pub(crate) fn get(&self, name: &str) -> Result<Literal, String> {
-        self.fields.get(name).cloned().ok_or("err".to_string())
+        self.fields.get(name).cloned().ok_or(format!(
+            "No property with name '{}' on instance: {:?}",
+            name, self
+        ))
+    }
+
+    pub(crate) fn set(&mut self, name: &str, value: Literal) {
+        self.fields.insert(name.to_string(), value);
     }
 }
 
