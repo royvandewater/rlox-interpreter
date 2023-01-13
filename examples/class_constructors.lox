@@ -1,0 +1,9 @@
+class Foo {
+    init(phrase) {
+        this.bar = phrase;
+    }
+}
+
+var foo = Foo("world");
+
+print "hello " + foo.bar;

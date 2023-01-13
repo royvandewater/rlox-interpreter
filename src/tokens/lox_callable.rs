@@ -24,6 +24,7 @@ pub(crate) struct Function {
     pub body: Vec<Stmt>,
     pub params: Vec<Token>,
     pub env_ref: EnvRef,
+    pub is_initializer: bool,
 }
 
 impl Function {
@@ -32,6 +33,20 @@ impl Function {
             body,
             params,
             env_ref,
+            is_initializer: false,
+        }
+    }
+
+    pub(crate) fn new_initializer(
+        body: Vec<Stmt>,
+        params: Vec<Token>,
+        env_ref: EnvRef,
+    ) -> Function {
+        Self {
+            body,
+            params,
+            env_ref,
+            is_initializer: true,
         }
     }
 
@@ -64,7 +79,10 @@ impl LoxCallable {
 
     pub fn arity(&self) -> usize {
         match &self.callable {
-            Callable::Class(_) => 0,
+            Callable::Class(class) => match class.methods.get("init") {
+                Some(method) => method.params.len(),
+                None => 0,
+            },
             Callable::Function(f) => f.params.len(),
             Callable::Native(_) => 0,
         }

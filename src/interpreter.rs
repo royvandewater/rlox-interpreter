@@ -84,7 +84,7 @@ impl Interpreter {
 
     fn call(
         &self,
-        _env: EnvRef,
+        env: EnvRef,
         callable: LoxCallable,
         arguments: Vec<Literal>,
     ) -> Result<Literal, Error> {
@@ -97,7 +97,18 @@ impl Interpreter {
         }
 
         match &callable.callable {
-            Callable::Class(c) => Ok(Literal::ClassInstance(LoxInstance::new(c.clone()))),
+            Callable::Class(c) => {
+                let instance = LoxInstance::new(c.clone());
+                if let Some(initializer) = instance.find_method("init") {
+                    let function = initializer.bind(instance.clone());
+                    self.call(
+                        env,
+                        LoxCallable::new("init".to_string(), Callable::Function(function)),
+                        arguments,
+                    )?;
+                }
+                Ok(Literal::ClassInstance(instance))
+            }
             Callable::Function(f) => {
                 let mut env = EnvRef::with_enclosing(f.env_ref.clone());
 
@@ -105,7 +116,8 @@ impl Interpreter {
                     env.define(&param.lexeme, arg);
                 }
 
-                match self.execute_block(env, &f.body) {
+                match self.execute_block(env.clone(), &f.body) {
+                    Ok(_) if f.is_initializer => Ok(env.get_at_distance(0, "this").unwrap()),
                     Ok(_) => Ok(Literal::Nil),
                     Err(e) => match e {
                         ReturnValue(value) => Ok(value),
@@ -292,7 +304,13 @@ impl crate::stmt::Visitor<EnvRef, Result<(), Error>> for Interpreter {
         let mut methods: BTreeMap<String, Function> = BTreeMap::new();
 
         for method in stmt.methods.iter() {
-            let function = Function::new(method.body.clone(), method.params.clone(), env.clone());
+            let body = method.body.clone();
+            let params = method.params.clone();
+
+            let function = match method.name.lexeme.as_str() {
+                "init" => Function::new_initializer(body, params, env.clone()),
+                _ => Function::new(body, params, env.clone()),
+            };
             methods.insert(method.name.lexeme.clone(), function);
         }
 

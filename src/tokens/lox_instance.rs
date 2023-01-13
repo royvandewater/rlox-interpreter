@@ -36,7 +36,7 @@ impl LoxInstance {
         self.0.borrow_mut().fields.insert(name.to_string(), value);
     }
 
-    fn find_method(&self, name: &str) -> Option<Function> {
+    pub(crate) fn find_method(&self, name: &str) -> Option<Function> {
         self.0.borrow().class.methods.get(name).cloned()
     }
 }
