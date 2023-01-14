@@ -119,7 +119,7 @@ impl Resolver {
     }
 
     fn resolve_expression(&self, expression: &Expr) -> Result<(), Vec<String>> {
-        walk_expr(self, (), expression)
+        walk_expr(self, expression)
     }
 
     fn resolve_function(&self, stmt: &FunctionStmt) -> Result<(), Vec<String>> {
@@ -149,12 +149,12 @@ impl Resolver {
     }
 
     fn resolve_statement(&self, statement: &Stmt) -> Result<(), Vec<String>> {
-        walk_stmt(self, (), statement)
+        walk_stmt(self, statement)
     }
 }
 
-impl stmt::Visitor<(), Result<(), Vec<String>>> for Resolver {
-    fn visit_block(&self, _: (), stmt: &stmt::BlockStmt) -> Result<(), Vec<String>> {
+impl stmt::Visitor<Result<(), Vec<String>>> for Resolver {
+    fn visit_block(&self, stmt: &stmt::BlockStmt) -> Result<(), Vec<String>> {
         self.begin_scope();
         self.resolve(&stmt.statements)?;
         self.end_scope();
@@ -162,7 +162,7 @@ impl stmt::Visitor<(), Result<(), Vec<String>>> for Resolver {
         Ok(())
     }
 
-    fn visit_class(&self, _: (), stmt: &ClassStmt) -> Result<(), Vec<String>> {
+    fn visit_class(&self, stmt: &ClassStmt) -> Result<(), Vec<String>> {
         self.declare(&stmt.name.lexeme);
         self.define(&stmt.name.lexeme);
 
@@ -178,18 +178,18 @@ impl stmt::Visitor<(), Result<(), Vec<String>>> for Resolver {
         Ok(())
     }
 
-    fn visit_expression(&self, _: (), stmt: &stmt::ExpressionStmt) -> Result<(), Vec<String>> {
+    fn visit_expression(&self, stmt: &stmt::ExpressionStmt) -> Result<(), Vec<String>> {
         self.resolve_expression(&stmt.expression)
     }
 
-    fn visit_function(&self, _: (), stmt: &stmt::FunctionStmt) -> Result<(), Vec<String>> {
+    fn visit_function(&self, stmt: &stmt::FunctionStmt) -> Result<(), Vec<String>> {
         self.declare(&stmt.name.lexeme);
         self.define(&stmt.name.lexeme);
 
         self.resolve_function(stmt)
     }
 
-    fn visit_if(&self, _: (), stmt: &stmt::IfStmt) -> Result<(), Vec<String>> {
+    fn visit_if(&self, stmt: &stmt::IfStmt) -> Result<(), Vec<String>> {
         self.resolve_expression(&stmt.condition)?;
         self.resolve_statement(&stmt.then_branch)?;
         self.resolve_statement(&stmt.else_branch)?;
@@ -197,15 +197,15 @@ impl stmt::Visitor<(), Result<(), Vec<String>>> for Resolver {
         Ok(())
     }
 
-    fn visit_print(&self, _: (), stmt: &stmt::PrintStmt) -> Result<(), Vec<String>> {
+    fn visit_print(&self, stmt: &stmt::PrintStmt) -> Result<(), Vec<String>> {
         self.resolve_expression(&stmt.expression)
     }
 
-    fn visit_return(&self, _: (), stmt: &stmt::ReturnStmt) -> Result<(), Vec<String>> {
+    fn visit_return(&self, stmt: &stmt::ReturnStmt) -> Result<(), Vec<String>> {
         self.resolve_expression(&stmt.value)
     }
 
-    fn visit_var(&self, _: (), stmt: &stmt::VarStmt) -> Result<(), Vec<String>> {
+    fn visit_var(&self, stmt: &stmt::VarStmt) -> Result<(), Vec<String>> {
         self.declare(&stmt.name.lexeme);
         self.resolve_expression(&stmt.initializer)?;
         self.define(&stmt.name.lexeme);
@@ -213,7 +213,7 @@ impl stmt::Visitor<(), Result<(), Vec<String>>> for Resolver {
         Ok(())
     }
 
-    fn visit_while(&self, _: (), stmt: &stmt::WhileStmt) -> Result<(), Vec<String>> {
+    fn visit_while(&self, stmt: &stmt::WhileStmt) -> Result<(), Vec<String>> {
         self.resolve_expression(&stmt.condition)?;
         self.resolve_statement(&stmt.body)?;
 
@@ -221,22 +221,22 @@ impl stmt::Visitor<(), Result<(), Vec<String>>> for Resolver {
     }
 }
 
-impl expr::Visitor<(), Result<(), Vec<String>>> for Resolver {
-    fn visit_assign(&self, _: (), expr: &AssignExpr) -> Result<(), Vec<String>> {
+impl expr::Visitor<Result<(), Vec<String>>> for Resolver {
+    fn visit_assign(&self, expr: &AssignExpr) -> Result<(), Vec<String>> {
         self.resolve_expression(&expr.value)?;
         self.resolve_local(Expr::Assign(expr.clone()), &expr.name.lexeme)?;
 
         Ok(())
     }
 
-    fn visit_binary(&self, _: (), expr: &BinaryExpr) -> Result<(), Vec<String>> {
+    fn visit_binary(&self, expr: &BinaryExpr) -> Result<(), Vec<String>> {
         self.resolve_expression(&expr.left)?;
         self.resolve_expression(&expr.right)?;
 
         Ok(())
     }
 
-    fn visit_call(&self, _: (), expr: &CallExpr) -> Result<(), Vec<String>> {
+    fn visit_call(&self, expr: &CallExpr) -> Result<(), Vec<String>> {
         self.resolve_expression(&expr.callee)?;
 
         for arg in expr.arguments.iter() {
@@ -246,44 +246,44 @@ impl expr::Visitor<(), Result<(), Vec<String>>> for Resolver {
         Ok(())
     }
 
-    fn visit_get(&self, _: (), expr: &GetExpr) -> Result<(), Vec<String>> {
+    fn visit_get(&self, expr: &GetExpr) -> Result<(), Vec<String>> {
         self.resolve_expression(&expr.object)
     }
 
-    fn visit_grouping(&self, _: (), expr: &GroupingExpr) -> Result<(), Vec<String>> {
+    fn visit_grouping(&self, expr: &GroupingExpr) -> Result<(), Vec<String>> {
         self.resolve_expression(&expr.expression)
     }
 
-    fn visit_literal(&self, _: (), _expr: &LiteralExpr) -> Result<(), Vec<String>> {
+    fn visit_literal(&self, _expr: &LiteralExpr) -> Result<(), Vec<String>> {
         Ok(())
     }
 
-    fn visit_logical(&self, _: (), expr: &LogicalExpr) -> Result<(), Vec<String>> {
+    fn visit_logical(&self, expr: &LogicalExpr) -> Result<(), Vec<String>> {
         self.resolve_expression(&expr.left)?;
         self.resolve_expression(&expr.right)?;
 
         Ok(())
     }
 
-    fn visit_set(&self, _: (), expr: &SetExpr) -> Result<(), Vec<String>> {
+    fn visit_set(&self, expr: &SetExpr) -> Result<(), Vec<String>> {
         self.resolve_expression(&expr.value)?;
         self.resolve_expression(&expr.object)?;
 
         Ok(())
     }
 
-    fn visit_this(&self, _: (), expr: &ThisExpr) -> Result<(), Vec<String>> {
+    fn visit_this(&self, expr: &ThisExpr) -> Result<(), Vec<String>> {
         self.resolve_local(
             Expr::Variable(VariableExpr::new(expr.id, expr.keyword.clone())),
             &expr.keyword.lexeme,
         )
     }
 
-    fn visit_unary(&self, _: (), expr: &UnaryExpr) -> Result<(), Vec<String>> {
+    fn visit_unary(&self, expr: &UnaryExpr) -> Result<(), Vec<String>> {
         self.resolve_expression(&expr.right)
     }
 
-    fn visit_variable(&self, _: (), expr: &VariableExpr) -> Result<(), Vec<String>> {
+    fn visit_variable(&self, expr: &VariableExpr) -> Result<(), Vec<String>> {
         let name = &expr.name.lexeme;
         match self.scopes.borrow().get(name) {
             Some(v) if v == false => {

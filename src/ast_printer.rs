@@ -2,7 +2,7 @@ use crate::expr::*;
 
 #[allow(dead_code)]
 pub(crate) fn print(expression: &Expr) -> String {
-    walk_expr(&mut AstPrinter, (), expression)
+    walk_expr(&mut AstPrinter, expression)
 }
 
 struct AstPrinter;
@@ -16,7 +16,7 @@ impl AstPrinter {
 
         for expr in exprs {
             builder.push(' ');
-            builder.push_str(&walk_expr(self, (), expr))
+            builder.push_str(&walk_expr(self, expr))
         }
         builder.push(')');
 
@@ -24,51 +24,51 @@ impl AstPrinter {
     }
 }
 
-impl Visitor<(), String> for AstPrinter {
-    fn visit_binary(&self, _: (), expr: &BinaryExpr) -> String {
+impl Visitor<String> for AstPrinter {
+    fn visit_binary(&self, expr: &BinaryExpr) -> String {
         self.parenthesize(&expr.operator.lexeme, vec![&expr.left, &expr.right])
     }
 
-    fn visit_literal(&self, _: (), expr: &LiteralExpr) -> String {
+    fn visit_literal(&self, expr: &LiteralExpr) -> String {
         format!("{}", &expr.value)
     }
 
-    fn visit_grouping(&self, _: (), expr: &GroupingExpr) -> String {
+    fn visit_grouping(&self, expr: &GroupingExpr) -> String {
         self.parenthesize("group", vec![&expr.expression])
     }
 
-    fn visit_unary(&self, _: (), expr: &UnaryExpr) -> String {
+    fn visit_unary(&self, expr: &UnaryExpr) -> String {
         self.parenthesize(&expr.operator.lexeme, vec![&expr.right])
     }
 
-    fn visit_variable(&self, _: (), expr: &VariableExpr) -> String {
+    fn visit_variable(&self, expr: &VariableExpr) -> String {
         expr.name.to_string()
     }
 
-    fn visit_assign(&self, _: (), expr: &AssignExpr) -> String {
+    fn visit_assign(&self, expr: &AssignExpr) -> String {
         self.parenthesize(&format!("let {}", expr.name), vec![&expr.value])
     }
 
-    fn visit_logical(&self, _: (), expr: &LogicalExpr) -> String {
+    fn visit_logical(&self, expr: &LogicalExpr) -> String {
         self.parenthesize(&expr.operator.lexeme, vec![&expr.left, &expr.right])
     }
 
-    fn visit_call(&self, _: (), expr: &CallExpr) -> String {
-        let func = walk_expr(self, (), &expr.callee);
+    fn visit_call(&self, expr: &CallExpr) -> String {
+        let func = walk_expr(self, &expr.callee);
         self.parenthesize(&func, expr.arguments.iter().collect())
     }
 
-    fn visit_get(&self, _: (), expr: &GetExpr) -> String {
-        let object = walk_expr(self, (), &expr.object);
+    fn visit_get(&self, expr: &GetExpr) -> String {
+        let object = walk_expr(self, &expr.object);
         format!("{}.{}", object, expr.name)
     }
 
-    fn visit_set(&self, _: (), expr: &SetExpr) -> String {
-        let object = walk_expr(self, (), &expr.object);
+    fn visit_set(&self, expr: &SetExpr) -> String {
+        let object = walk_expr(self, &expr.object);
         format!("{}.{} = ", object, expr.name)
     }
 
-    fn visit_this(&self, _: (), expr: &ThisExpr) -> String {
+    fn visit_this(&self, expr: &ThisExpr) -> String {
         expr.keyword.lexeme.to_string()
     }
 }
