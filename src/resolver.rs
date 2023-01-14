@@ -72,11 +72,8 @@ impl Locals {
 }
 
 pub(crate) fn resolve_locals(statements: &Vec<Stmt>) -> Result<Locals, Vec<String>> {
-    let scopes = Scopes(Vec::new());
-    let locals = Locals::new();
-
     let resolver = Resolver::new();
-    resolver.resolve((scopes, locals), statements)?;
+    resolver.resolve(statements)?;
     Ok(resolver.locals.into_inner())
 }
 
@@ -113,31 +110,19 @@ impl Resolver {
         self.scopes.borrow_mut().define(name.to_string())
     }
 
-    fn resolve(
-        &self,
-        mut bundle: (Scopes, Locals),
-        statements: &Vec<Stmt>,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
+    fn resolve(&self, statements: &Vec<Stmt>) -> Result<(), Vec<String>> {
         for statement in statements {
-            bundle = self.resolve_statement(bundle, statement)?;
+            self.resolve_statement(statement)?;
         }
 
-        Ok(bundle)
+        Ok(())
     }
 
-    fn resolve_expression(
-        &self,
-        bundle: (Scopes, Locals),
-        expression: &Expr,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
-        walk_expr(self, bundle, expression)
+    fn resolve_expression(&self, expression: &Expr) -> Result<(), Vec<String>> {
+        walk_expr(self, (), expression)
     }
 
-    fn resolve_function(
-        &self,
-        mut bundle: (Scopes, Locals),
-        stmt: &FunctionStmt,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
+    fn resolve_function(&self, stmt: &FunctionStmt) -> Result<(), Vec<String>> {
         self.begin_scope();
 
         for param in stmt.params.iter() {
@@ -145,17 +130,12 @@ impl Resolver {
             self.define(&param.lexeme);
         }
 
-        bundle = self.resolve(bundle, &stmt.body)?;
+        self.resolve(&stmt.body)?;
         self.end_scope();
-        Ok(bundle)
+        Ok(())
     }
 
-    fn resolve_local(
-        &self,
-        bundle: (Scopes, Locals),
-        expression: Expr,
-        name: &str,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
+    fn resolve_local(&self, expression: Expr, name: &str) -> Result<(), Vec<String>> {
         let scopes = self.scopes.borrow();
 
         for (i, scope) in scopes.iter().rev().enumerate() {
@@ -165,36 +145,24 @@ impl Resolver {
             }
         }
 
-        Ok(bundle)
+        Ok(())
     }
 
-    fn resolve_statement(
-        &self,
-        bundle: (Scopes, Locals),
-        statement: &Stmt,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
-        walk_stmt(self, bundle, statement)
+    fn resolve_statement(&self, statement: &Stmt) -> Result<(), Vec<String>> {
+        walk_stmt(self, (), statement)
     }
 }
 
-impl stmt::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for Resolver {
-    fn visit_block(
-        &self,
-        mut bundle: (Scopes, Locals),
-        stmt: &stmt::BlockStmt,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
+impl stmt::Visitor<(), Result<(), Vec<String>>> for Resolver {
+    fn visit_block(&self, _: (), stmt: &stmt::BlockStmt) -> Result<(), Vec<String>> {
         self.begin_scope();
-        bundle = self.resolve(bundle, &stmt.statements)?;
+        self.resolve(&stmt.statements)?;
         self.end_scope();
 
-        Ok(bundle)
+        Ok(())
     }
 
-    fn visit_class(
-        &self,
-        mut bundle: (Scopes, Locals),
-        stmt: &ClassStmt,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
+    fn visit_class(&self, _: (), stmt: &ClassStmt) -> Result<(), Vec<String>> {
         self.declare(&stmt.name.lexeme);
         self.define(&stmt.name.lexeme);
 
@@ -202,193 +170,120 @@ impl stmt::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for 
         self.force_define("this");
 
         for method in stmt.methods.iter() {
-            bundle = self.resolve_function(bundle, method)?;
+            self.resolve_function(method)?;
         }
 
         self.end_scope();
 
-        Ok(bundle)
+        Ok(())
     }
 
-    fn visit_expression(
-        &self,
-        bundle: (Scopes, Locals),
-        stmt: &stmt::ExpressionStmt,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
-        self.resolve_expression(bundle, &stmt.expression)
+    fn visit_expression(&self, _: (), stmt: &stmt::ExpressionStmt) -> Result<(), Vec<String>> {
+        self.resolve_expression(&stmt.expression)
     }
 
-    fn visit_function(
-        &self,
-        bundle: (Scopes, Locals),
-        stmt: &stmt::FunctionStmt,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
+    fn visit_function(&self, _: (), stmt: &stmt::FunctionStmt) -> Result<(), Vec<String>> {
         self.declare(&stmt.name.lexeme);
         self.define(&stmt.name.lexeme);
 
-        self.resolve_function(bundle, stmt)
+        self.resolve_function(stmt)
     }
 
-    fn visit_if(
-        &self,
-        mut bundle: (Scopes, Locals),
-        stmt: &stmt::IfStmt,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
-        bundle = self.resolve_expression(bundle, &stmt.condition)?;
-        bundle = self.resolve_statement(bundle, &stmt.then_branch)?;
-        bundle = self.resolve_statement(bundle, &stmt.else_branch)?;
+    fn visit_if(&self, _: (), stmt: &stmt::IfStmt) -> Result<(), Vec<String>> {
+        self.resolve_expression(&stmt.condition)?;
+        self.resolve_statement(&stmt.then_branch)?;
+        self.resolve_statement(&stmt.else_branch)?;
 
-        Ok(bundle)
+        Ok(())
     }
 
-    fn visit_print(
-        &self,
-        bundle: (Scopes, Locals),
-        stmt: &stmt::PrintStmt,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
-        self.resolve_expression(bundle, &stmt.expression)
+    fn visit_print(&self, _: (), stmt: &stmt::PrintStmt) -> Result<(), Vec<String>> {
+        self.resolve_expression(&stmt.expression)
     }
 
-    fn visit_return(
-        &self,
-        bundle: (Scopes, Locals),
-        stmt: &stmt::ReturnStmt,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
-        self.resolve_expression(bundle, &stmt.value)
+    fn visit_return(&self, _: (), stmt: &stmt::ReturnStmt) -> Result<(), Vec<String>> {
+        self.resolve_expression(&stmt.value)
     }
 
-    fn visit_var(
-        &self,
-        mut bundle: (Scopes, Locals),
-        stmt: &stmt::VarStmt,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
+    fn visit_var(&self, _: (), stmt: &stmt::VarStmt) -> Result<(), Vec<String>> {
         self.declare(&stmt.name.lexeme);
-        bundle = self.resolve_expression(bundle, &stmt.initializer)?;
+        self.resolve_expression(&stmt.initializer)?;
         self.define(&stmt.name.lexeme);
 
-        Ok(bundle)
+        Ok(())
     }
 
-    fn visit_while(
-        &self,
-        mut bundle: (Scopes, Locals),
-        stmt: &stmt::WhileStmt,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
-        bundle = self.resolve_expression(bundle, &stmt.condition)?;
-        bundle = self.resolve_statement(bundle, &stmt.body)?;
+    fn visit_while(&self, _: (), stmt: &stmt::WhileStmt) -> Result<(), Vec<String>> {
+        self.resolve_expression(&stmt.condition)?;
+        self.resolve_statement(&stmt.body)?;
 
-        Ok(bundle)
+        Ok(())
     }
 }
 
-impl expr::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for Resolver {
-    fn visit_assign(
-        &self,
-        mut bundle: (Scopes, Locals),
-        expr: &AssignExpr,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
-        bundle = self.resolve_expression(bundle, &expr.value)?;
-        bundle = self.resolve_local(bundle, Expr::Assign(expr.clone()), &expr.name.lexeme)?;
+impl expr::Visitor<(), Result<(), Vec<String>>> for Resolver {
+    fn visit_assign(&self, _: (), expr: &AssignExpr) -> Result<(), Vec<String>> {
+        self.resolve_expression(&expr.value)?;
+        self.resolve_local(Expr::Assign(expr.clone()), &expr.name.lexeme)?;
 
-        Ok(bundle)
+        Ok(())
     }
 
-    fn visit_binary(
-        &self,
-        mut bundle: (Scopes, Locals),
-        expr: &BinaryExpr,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
-        bundle = self.resolve_expression(bundle, &expr.left)?;
-        bundle = self.resolve_expression(bundle, &expr.right)?;
+    fn visit_binary(&self, _: (), expr: &BinaryExpr) -> Result<(), Vec<String>> {
+        self.resolve_expression(&expr.left)?;
+        self.resolve_expression(&expr.right)?;
 
-        Ok(bundle)
+        Ok(())
     }
 
-    fn visit_call(
-        &self,
-        mut bundle: (Scopes, Locals),
-        expr: &CallExpr,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
-        bundle = self.resolve_expression(bundle, &expr.callee)?;
+    fn visit_call(&self, _: (), expr: &CallExpr) -> Result<(), Vec<String>> {
+        self.resolve_expression(&expr.callee)?;
 
         for arg in expr.arguments.iter() {
-            bundle = self.resolve_expression(bundle, arg)?;
+            self.resolve_expression(arg)?;
         }
 
-        Ok(bundle)
+        Ok(())
     }
 
-    fn visit_get(
-        &self,
-        bundle: (Scopes, Locals),
-        expr: &GetExpr,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
-        self.resolve_expression(bundle, &expr.object)
+    fn visit_get(&self, _: (), expr: &GetExpr) -> Result<(), Vec<String>> {
+        self.resolve_expression(&expr.object)
     }
 
-    fn visit_grouping(
-        &self,
-        bundle: (Scopes, Locals),
-        expr: &GroupingExpr,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
-        self.resolve_expression(bundle, &expr.expression)
+    fn visit_grouping(&self, _: (), expr: &GroupingExpr) -> Result<(), Vec<String>> {
+        self.resolve_expression(&expr.expression)
     }
 
-    fn visit_literal(
-        &self,
-        bundle: (Scopes, Locals),
-        _expr: &LiteralExpr,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
-        Ok(bundle)
+    fn visit_literal(&self, _: (), _expr: &LiteralExpr) -> Result<(), Vec<String>> {
+        Ok(())
     }
 
-    fn visit_logical(
-        &self,
-        bundle: (Scopes, Locals),
-        expr: &LogicalExpr,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
-        let bundle = self.resolve_expression(bundle, &expr.left)?;
-        let bundle = self.resolve_expression(bundle, &expr.right)?;
+    fn visit_logical(&self, _: (), expr: &LogicalExpr) -> Result<(), Vec<String>> {
+        self.resolve_expression(&expr.left)?;
+        self.resolve_expression(&expr.right)?;
 
-        Ok(bundle)
+        Ok(())
     }
 
-    fn visit_set(
-        &self,
-        bundle: (Scopes, Locals),
-        expr: &SetExpr,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
-        let bundle = self.resolve_expression(bundle, &expr.value)?;
-        let bundle = self.resolve_expression(bundle, &expr.object)?;
+    fn visit_set(&self, _: (), expr: &SetExpr) -> Result<(), Vec<String>> {
+        self.resolve_expression(&expr.value)?;
+        self.resolve_expression(&expr.object)?;
 
-        Ok(bundle)
+        Ok(())
     }
 
-    fn visit_this(
-        &self,
-        bundle: (Scopes, Locals),
-        expr: &ThisExpr,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
+    fn visit_this(&self, _: (), expr: &ThisExpr) -> Result<(), Vec<String>> {
         self.resolve_local(
-            bundle,
             Expr::Variable(VariableExpr::new(expr.keyword.clone())),
             &expr.keyword.lexeme,
         )
     }
 
-    fn visit_unary(
-        &self,
-        bundle: (Scopes, Locals),
-        expr: &UnaryExpr,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
-        self.resolve_expression(bundle, &expr.right)
+    fn visit_unary(&self, _: (), expr: &UnaryExpr) -> Result<(), Vec<String>> {
+        self.resolve_expression(&expr.right)
     }
 
-    fn visit_variable(
-        &self,
-        bundle: (Scopes, Locals),
-        expr: &VariableExpr,
-    ) -> Result<(Scopes, Locals), Vec<String>> {
+    fn visit_variable(&self, _: (), expr: &VariableExpr) -> Result<(), Vec<String>> {
         let name = &expr.name.lexeme;
         match self.scopes.borrow().get(name) {
             Some(v) if v == false => {
@@ -399,6 +294,6 @@ impl expr::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for 
             _ => (),
         }
 
-        self.resolve_local(bundle, Expr::Variable(expr.clone()), &expr.name.lexeme)
+        self.resolve_local(Expr::Variable(expr.clone()), &expr.name.lexeme)
     }
 }
