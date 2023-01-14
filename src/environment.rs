@@ -4,23 +4,23 @@ use crate::tokens::Literal;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 struct Inner {
-    enclosing: Option<EnvRef>,
+    enclosing: Option<Environment>,
     values: BTreeMap<String, Literal>,
 }
 
 #[derive(Clone, Eq, PartialEq)]
-pub(crate) struct EnvRef(Rc<RefCell<Inner>>);
+pub(crate) struct Environment(Rc<RefCell<Inner>>);
 
-impl EnvRef {
-    pub fn new() -> EnvRef {
-        EnvRef(Rc::new(RefCell::new(Inner {
+impl Environment {
+    pub fn new() -> Environment {
+        Environment(Rc::new(RefCell::new(Inner {
             enclosing: None,
             values: BTreeMap::new(),
         })))
     }
 
-    pub fn with_enclosing(enclosing: EnvRef) -> EnvRef {
-        EnvRef(Rc::new(RefCell::new(Inner {
+    pub fn with_enclosing(enclosing: Environment) -> Environment {
+        Environment(Rc::new(RefCell::new(Inner {
             enclosing: Some(enclosing),
             values: BTreeMap::new(),
         })))
@@ -101,17 +101,17 @@ impl EnvRef {
     }
 }
 
-impl std::fmt::Debug for EnvRef {
+impl std::fmt::Debug for Environment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let inner = self.0.borrow();
-        f.debug_struct("EnvRef")
+        f.debug_struct("Environment")
             .field("values", &inner.values)
             .field("enclosing", &inner.enclosing)
             .finish()
     }
 }
 
-impl std::hash::Hash for EnvRef {
+impl std::hash::Hash for Environment {
     fn hash<H>(&self, state: &mut H)
     where
         H: std::hash::Hasher,

@@ -14,7 +14,7 @@ mod tokens;
 
 use std::{env, fs, io, process};
 
-use environment::EnvRef;
+use environment::Environment;
 use stmt::Stmt;
 use tokens::Tokens;
 
@@ -39,25 +39,25 @@ fn main() {
     run_prompt();
 }
 
-fn init_env_ref() -> EnvRef {
-    let env_ref = EnvRef::new();
-    native::define_native_functions(env_ref.clone());
-    env_ref
+fn init_env() -> Environment {
+    let env = Environment::new();
+    native::define_native_functions(env.clone());
+    env
 }
 
 fn run_file(filename: &String) -> Result<(), Vec<String>> {
-    let env_ref = init_env_ref();
+    let env = init_env();
     let contents = fs::read_to_string(filename)
         .map_err(|e| Vec::from([format!("Failed to read file '{}': '{}'", filename, e)]))?;
 
-    run(env_ref, contents).map(|_| ())
+    run(env, contents).map(|_| ())
 }
 
 fn run_prompt() {
-    let env_ref = init_env_ref();
+    let env = init_env();
 
     for line in io::stdin().lines() {
-        match run(env_ref.clone(), line.unwrap()) {
+        match run(env.clone(), line.unwrap()) {
             Ok(_) => {}
             Err(errors) => {
                 format!("Error running line: {:?}", errors);
@@ -66,11 +66,11 @@ fn run_prompt() {
     }
 }
 
-fn run(env_ref: EnvRef, contents: String) -> Result<(), Vec<String>> {
+fn run(env: Environment, contents: String) -> Result<(), Vec<String>> {
     let tokens: Tokens = contents.parse()?;
     let statements: Vec<Stmt> = parser::parse(tokens)?;
 
     let locals = resolver::resolve_locals(&statements)?;
 
-    interpreter::interpret(env_ref, locals, &statements)
+    interpreter::interpret(env, locals, &statements)
 }

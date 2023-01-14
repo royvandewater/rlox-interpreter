@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::environment::EnvRef;
+use crate::environment::Environment;
 use crate::expr::*;
 use crate::resolver::Locals;
 use crate::stmt::*;
@@ -34,7 +34,7 @@ use Error::ReturnValue;
 use Error::SingleError;
 
 pub(crate) fn interpret(
-    env: EnvRef,
+    env: Environment,
     locals: Locals,
     statements: &Vec<Stmt>,
 ) -> Result<(), Vec<String>> {
@@ -50,7 +50,7 @@ impl Interpreter {
         Interpreter { locals }
     }
 
-    fn interpret(&self, env: EnvRef, statements: &Vec<Stmt>) -> Result<(), Vec<String>> {
+    fn interpret(&self, env: Environment, statements: &Vec<Stmt>) -> Result<(), Vec<String>> {
         for statement in statements.iter() {
             match self.execute(env.clone(), statement) {
                 Ok(_) => (),
@@ -66,15 +66,19 @@ impl Interpreter {
         Ok(())
     }
 
-    fn execute(&self, environment: EnvRef, statement: &Stmt) -> Result<(), Error> {
+    fn execute(&self, environment: Environment, statement: &Stmt) -> Result<(), Error> {
         walk_stmt(self, environment, statement)
     }
 
-    fn evaluate(&self, environment: EnvRef, expression: &Expr) -> Result<Literal, Error> {
+    fn evaluate(&self, environment: Environment, expression: &Expr) -> Result<Literal, Error> {
         walk_expr(self, environment, expression)
     }
 
-    fn execute_block<'a>(&self, environment: EnvRef, statements: &Vec<Stmt>) -> Result<(), Error> {
+    fn execute_block<'a>(
+        &self,
+        environment: Environment,
+        statements: &Vec<Stmt>,
+    ) -> Result<(), Error> {
         for statement in statements {
             self.execute(environment.clone(), statement)?;
         }
@@ -84,7 +88,7 @@ impl Interpreter {
 
     fn call(
         &self,
-        env: EnvRef,
+        env: Environment,
         callable: LoxCallable,
         arguments: Vec<Literal>,
     ) -> Result<Literal, Error> {
@@ -110,7 +114,7 @@ impl Interpreter {
                 Ok(Literal::ClassInstance(instance))
             }
             Callable::Function(f) => {
-                let mut env = EnvRef::with_enclosing(f.env_ref.clone());
+                let mut env = Environment::with_enclosing(f.env.clone());
 
                 for (param, arg) in f.params.iter().zip(arguments) {
                     env.define(&param.lexeme, arg);
@@ -131,7 +135,7 @@ impl Interpreter {
 
     fn look_up_variable(
         &self,
-        env: EnvRef,
+        env: Environment,
         name: &str,
         expr: &VariableExpr,
     ) -> Result<Literal, Error> {
@@ -150,8 +154,12 @@ impl Interpreter {
     }
 }
 
-impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
-    fn visit_assign(&self, mut env: EnvRef, expression: &AssignExpr) -> Result<Literal, Error> {
+impl expr::Visitor<Environment, Result<Literal, Error>> for Interpreter {
+    fn visit_assign(
+        &self,
+        mut env: Environment,
+        expression: &AssignExpr,
+    ) -> Result<Literal, Error> {
         let name = &expression.name.lexeme.to_string();
         let value = self.evaluate(env.clone(), &expression.value)?;
 
@@ -163,7 +171,7 @@ impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
         Ok(value)
     }
 
-    fn visit_binary(&self, env: EnvRef, expr: &BinaryExpr) -> Result<Literal, Error> {
+    fn visit_binary(&self, env: Environment, expr: &BinaryExpr) -> Result<Literal, Error> {
         let left = self.evaluate(env.clone(), &expr.left)?;
         let right = self.evaluate(env.clone(), &expr.right)?;
 
@@ -196,7 +204,7 @@ impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
         }
     }
 
-    fn visit_call(&self, env: EnvRef, expr: &CallExpr) -> Result<Literal, Error> {
+    fn visit_call(&self, env: Environment, expr: &CallExpr) -> Result<Literal, Error> {
         let callee = self.evaluate(env.clone(), &expr.callee)?;
 
         let mut arguments: Vec<Literal> = Vec::new();
@@ -213,7 +221,7 @@ impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
         }
     }
 
-    fn visit_get(&self, env: EnvRef, expr: &GetExpr) -> Result<Literal, Error> {
+    fn visit_get(&self, env: Environment, expr: &GetExpr) -> Result<Literal, Error> {
         match self.evaluate(env, &expr.object)? {
             L::ClassInstance(i) => Ok(i.get(&expr.name.lexeme)?),
             _ => Err(Error::SingleError(
@@ -222,15 +230,15 @@ impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
         }
     }
 
-    fn visit_grouping(&self, env: EnvRef, expr: &GroupingExpr) -> Result<Literal, Error> {
+    fn visit_grouping(&self, env: Environment, expr: &GroupingExpr) -> Result<Literal, Error> {
         self.evaluate(env, &expr.expression)
     }
 
-    fn visit_literal(&self, _env: EnvRef, expr: &LiteralExpr) -> Result<Literal, Error> {
+    fn visit_literal(&self, _env: Environment, expr: &LiteralExpr) -> Result<Literal, Error> {
         Ok(expr.value.clone())
     }
 
-    fn visit_logical(&self, env: EnvRef, expr: &LogicalExpr) -> Result<Literal, Error> {
+    fn visit_logical(&self, env: Environment, expr: &LogicalExpr) -> Result<Literal, Error> {
         let left = self.evaluate(env.clone(), &expr.left)?;
 
         match (evaluate_truthy(&left), expr.operator.token_type) {
@@ -245,7 +253,7 @@ impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
         }
     }
 
-    fn visit_set(&self, env: EnvRef, expr: &SetExpr) -> Result<Literal, Error> {
+    fn visit_set(&self, env: Environment, expr: &SetExpr) -> Result<Literal, Error> {
         let mut object = match self.evaluate(env.clone(), &expr.object)? {
             L::ClassInstance(o) => o,
             _ => Err("Only instances have fields.")?,
@@ -256,7 +264,7 @@ impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
         Ok(value)
     }
 
-    fn visit_this(&self, env: EnvRef, expr: &ThisExpr) -> Result<Literal, Error> {
+    fn visit_this(&self, env: Environment, expr: &ThisExpr) -> Result<Literal, Error> {
         self.look_up_variable(
             env,
             &expr.keyword.lexeme,
@@ -264,7 +272,7 @@ impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
         )
     }
 
-    fn visit_unary(&self, env: EnvRef, expr: &UnaryExpr) -> Result<Literal, Error> {
+    fn visit_unary(&self, env: Environment, expr: &UnaryExpr) -> Result<Literal, Error> {
         let right = self.evaluate(env, &expr.right)?;
 
         match (expr.operator.token_type, right) {
@@ -283,21 +291,21 @@ impl expr::Visitor<EnvRef, Result<Literal, Error>> for Interpreter {
         }
     }
 
-    fn visit_variable(&self, env: EnvRef, expr: &VariableExpr) -> Result<Literal, Error> {
+    fn visit_variable(&self, env: Environment, expr: &VariableExpr) -> Result<Literal, Error> {
         self.look_up_variable(env, &expr.name.lexeme, expr)
     }
 }
 
-impl crate::stmt::Visitor<EnvRef, Result<(), Error>> for Interpreter {
-    fn visit_block<'a>(&self, env: EnvRef, stmt: &BlockStmt) -> Result<(), Error> {
-        let scope_ref = EnvRef::with_enclosing(env);
+impl crate::stmt::Visitor<Environment, Result<(), Error>> for Interpreter {
+    fn visit_block<'a>(&self, env: Environment, stmt: &BlockStmt) -> Result<(), Error> {
+        let scope_ref = Environment::with_enclosing(env);
 
         self.execute_block(scope_ref, &stmt.statements)?;
 
         Ok(())
     }
 
-    fn visit_class(&self, mut env: EnvRef, stmt: &ClassStmt) -> Result<(), Error> {
+    fn visit_class(&self, mut env: Environment, stmt: &ClassStmt) -> Result<(), Error> {
         let name = stmt.name.lexeme.clone();
         env.define(&name, L::Nil);
 
@@ -322,11 +330,11 @@ impl crate::stmt::Visitor<EnvRef, Result<(), Error>> for Interpreter {
         Ok(())
     }
 
-    fn visit_expression(&self, env: EnvRef, stmt: &ExpressionStmt) -> Result<(), Error> {
+    fn visit_expression(&self, env: Environment, stmt: &ExpressionStmt) -> Result<(), Error> {
         self.evaluate(env, &stmt.expression).map(|_| ())
     }
 
-    fn visit_function(&self, mut env: EnvRef, stmt: &FunctionStmt) -> Result<(), Error> {
+    fn visit_function(&self, mut env: Environment, stmt: &FunctionStmt) -> Result<(), Error> {
         let function = LoxCallable::new(
             stmt.name.lexeme.clone(),
             Callable::Function(Function::new(
@@ -341,7 +349,7 @@ impl crate::stmt::Visitor<EnvRef, Result<(), Error>> for Interpreter {
         Ok(())
     }
 
-    fn visit_if(&self, env: EnvRef, stmt: &IfStmt) -> Result<(), Error> {
+    fn visit_if(&self, env: Environment, stmt: &IfStmt) -> Result<(), Error> {
         let condition_result = self.evaluate(env.clone(), &stmt.condition)?;
 
         match evaluate_truthy(&condition_result) {
@@ -350,23 +358,23 @@ impl crate::stmt::Visitor<EnvRef, Result<(), Error>> for Interpreter {
         }
     }
 
-    fn visit_print(&self, env: EnvRef, stmt: &PrintStmt) -> Result<(), Error> {
+    fn visit_print(&self, env: Environment, stmt: &PrintStmt) -> Result<(), Error> {
         let value = self.evaluate(env, &stmt.expression)?;
         println!("{}", value);
         Ok(())
     }
 
-    fn visit_return(&self, env: EnvRef, stmt: &ReturnStmt) -> Result<(), Error> {
+    fn visit_return(&self, env: Environment, stmt: &ReturnStmt) -> Result<(), Error> {
         Err(ReturnValue(self.evaluate(env, &stmt.value)?))
     }
 
-    fn visit_var(&self, mut env: EnvRef, stmt: &VarStmt) -> Result<(), Error> {
+    fn visit_var(&self, mut env: Environment, stmt: &VarStmt) -> Result<(), Error> {
         let value = self.evaluate(env.clone(), &stmt.initializer)?;
         env.define(&stmt.name.lexeme, value);
         Ok(())
     }
 
-    fn visit_while(&self, env: EnvRef, stmt: &WhileStmt) -> Result<(), Error> {
+    fn visit_while(&self, env: Environment, stmt: &WhileStmt) -> Result<(), Error> {
         loop {
             let condition_result = self.evaluate(env.clone(), &stmt.condition)?;
 

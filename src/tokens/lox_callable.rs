@@ -5,7 +5,7 @@ use std::{
 };
 
 use super::{Literal, LoxInstance, Token};
-use crate::environment::EnvRef;
+use crate::environment::Environment;
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct Class {
@@ -23,16 +23,16 @@ impl Class {
 pub(crate) struct Function {
     pub body: Vec<Stmt>,
     pub params: Vec<Token>,
-    pub env_ref: EnvRef,
+    pub env: Environment,
     pub is_initializer: bool,
 }
 
 impl Function {
-    pub(crate) fn new(body: Vec<Stmt>, params: Vec<Token>, env_ref: EnvRef) -> Self {
+    pub(crate) fn new(body: Vec<Stmt>, params: Vec<Token>, env: Environment) -> Self {
         Self {
             body,
             params,
-            env_ref,
+            env,
             is_initializer: false,
         }
     }
@@ -40,18 +40,18 @@ impl Function {
     pub(crate) fn new_initializer(
         body: Vec<Stmt>,
         params: Vec<Token>,
-        env_ref: EnvRef,
+        env: Environment,
     ) -> Function {
         Self {
             body,
             params,
-            env_ref,
+            env,
             is_initializer: true,
         }
     }
 
     pub(crate) fn bind(&self, instance: LoxInstance) -> Function {
-        let mut env = EnvRef::with_enclosing(self.env_ref.clone());
+        let mut env = Environment::with_enclosing(self.env.clone());
         env.define("this", Literal::ClassInstance(instance));
         Function::new(self.body.clone(), self.params.clone(), env)
     }

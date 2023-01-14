@@ -3,16 +3,16 @@ use std::time::SystemTime;
 use rust_decimal::{prelude::FromPrimitive, Decimal};
 
 use crate::{
-    environment::EnvRef,
+    environment::Environment,
     tokens::{Callable, Literal, LoxCallable},
 };
 
-pub(crate) fn define_native_functions(env_ref: EnvRef) {
-    define_clock(env_ref)
+pub(crate) fn define_native_functions(env: Environment) {
+    define_clock(env)
 }
 
-fn define_clock(mut env_ref: EnvRef) {
-    env_ref.define(
+fn define_clock(mut env: Environment) {
+    env.define(
         "clock",
         Literal::Callable(LoxCallable::new(
             "clock".to_string(),
