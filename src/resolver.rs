@@ -1,4 +1,4 @@
-use std::{collections::HashMap, slice::Iter};
+use std::{cell::RefCell, collections::HashMap, slice::Iter};
 
 use crate::{
     expr::{self, *},
@@ -9,6 +9,10 @@ use crate::{
 pub(crate) struct Scopes(Vec<HashMap<String, bool>>);
 
 impl Scopes {
+    fn new() -> Scopes {
+        Scopes(Vec::new())
+    }
+
     fn begin_scope(&mut self) {
         self.0.push(HashMap::new());
     }
@@ -51,6 +55,7 @@ impl Scopes {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct Locals(HashMap<Expr, usize>);
 impl Locals {
     fn new() -> Locals {
@@ -70,16 +75,42 @@ pub(crate) fn resolve_locals(statements: &Vec<Stmt>) -> Result<Locals, Vec<Strin
     let scopes = Scopes(Vec::new());
     let locals = Locals::new();
 
-    Resolver::new()
-        .resolve((scopes, locals), statements)
-        .map(|(_, locals)| locals)
+    let resolver = Resolver::new();
+    resolver.resolve((scopes, locals), statements)?;
+    Ok(resolver.locals.into_inner())
 }
 
-struct Resolver;
+struct Resolver {
+    locals: RefCell<Locals>,
+    scopes: RefCell<Scopes>,
+}
 
 impl Resolver {
     fn new() -> Resolver {
-        Resolver
+        Resolver {
+            locals: RefCell::new(Locals::new()),
+            scopes: RefCell::new(Scopes::new()),
+        }
+    }
+
+    fn begin_scope(&self) {
+        self.scopes.borrow_mut().begin_scope()
+    }
+
+    fn end_scope(&self) {
+        self.scopes.borrow_mut().end_scope()
+    }
+
+    fn force_define(&self, name: &str) {
+        self.scopes.borrow_mut().force_define(name.to_string());
+    }
+
+    fn declare(&self, name: &str) {
+        self.scopes.borrow_mut().declare(name.to_string())
+    }
+
+    fn define(&self, name: &str) {
+        self.scopes.borrow_mut().define(name.to_string())
     }
 
     fn resolve(
@@ -104,76 +135,79 @@ impl Resolver {
 
     fn resolve_function(
         &self,
-        (mut scopes, mut locals): (Scopes, Locals),
+        mut bundle: (Scopes, Locals),
         stmt: &FunctionStmt,
     ) -> Result<(Scopes, Locals), Vec<String>> {
-        scopes.begin_scope();
+        self.begin_scope();
 
         for param in stmt.params.iter() {
-            scopes.declare(param.lexeme.clone());
-            scopes.define(param.lexeme.clone());
+            self.declare(&param.lexeme);
+            self.define(&param.lexeme);
         }
 
-        (scopes, locals) = self.resolve((scopes, locals), &stmt.body)?;
-        scopes.end_scope();
-        Ok((scopes, locals))
+        bundle = self.resolve(bundle, &stmt.body)?;
+        self.end_scope();
+        Ok(bundle)
     }
 
     fn resolve_local(
         &self,
-        (scopes, mut locals): (Scopes, Locals),
+        bundle: (Scopes, Locals),
         expression: Expr,
         name: &str,
     ) -> Result<(Scopes, Locals), Vec<String>> {
+        let scopes = self.scopes.borrow();
+
         for (i, scope) in scopes.iter().rev().enumerate() {
             if scope.contains_key(name) {
-                locals.resolve(expression, i);
+                self.locals.borrow_mut().resolve(expression, i);
                 break;
             }
         }
 
-        Ok((scopes, locals))
+        Ok(bundle)
     }
 
     fn resolve_statement(
         &self,
-        args: (Scopes, Locals),
+        bundle: (Scopes, Locals),
         statement: &Stmt,
     ) -> Result<(Scopes, Locals), Vec<String>> {
-        walk_stmt(self, args, statement)
+        walk_stmt(self, bundle, statement)
     }
 }
 
 impl stmt::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for Resolver {
     fn visit_block(
         &self,
-        (mut scopes, mut locals): (Scopes, Locals),
+        mut bundle: (Scopes, Locals),
         stmt: &stmt::BlockStmt,
     ) -> Result<(Scopes, Locals), Vec<String>> {
-        scopes.begin_scope();
-        (scopes, locals) = self.resolve((scopes, locals), &stmt.statements)?;
-        scopes.end_scope();
-        Ok((scopes, locals))
+        self.begin_scope();
+        bundle = self.resolve(bundle, &stmt.statements)?;
+        self.end_scope();
+
+        Ok(bundle)
     }
 
     fn visit_class(
         &self,
-        (mut scopes, mut locals): (Scopes, Locals),
+        mut bundle: (Scopes, Locals),
         stmt: &ClassStmt,
     ) -> Result<(Scopes, Locals), Vec<String>> {
-        scopes.declare(stmt.name.lexeme.clone());
-        scopes.define(stmt.name.lexeme.clone());
+        self.declare(&stmt.name.lexeme);
+        self.define(&stmt.name.lexeme);
 
-        scopes.begin_scope();
-        scopes.force_define("this".to_string());
+        self.begin_scope();
+        self.force_define("this");
 
         for method in stmt.methods.iter() {
-            (scopes, locals) = self.resolve_function((scopes, locals), method)?;
+            bundle = self.resolve_function(bundle, method)?;
         }
 
-        scopes.end_scope();
+        self.end_scope();
 
-        Ok((scopes, locals))
+        Ok(bundle)
     }
 
     fn visit_expression(
@@ -186,13 +220,13 @@ impl stmt::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for 
 
     fn visit_function(
         &self,
-        (mut scopes, locals): (Scopes, Locals),
+        bundle: (Scopes, Locals),
         stmt: &stmt::FunctionStmt,
     ) -> Result<(Scopes, Locals), Vec<String>> {
-        scopes.declare(stmt.name.lexeme.clone());
-        scopes.define(stmt.name.lexeme.clone());
+        self.declare(&stmt.name.lexeme);
+        self.define(&stmt.name.lexeme);
 
-        self.resolve_function((scopes, locals), stmt)
+        self.resolve_function(bundle, stmt)
     }
 
     fn visit_if(
@@ -225,13 +259,14 @@ impl stmt::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for 
 
     fn visit_var(
         &self,
-        (mut scopes, mut locals): (Scopes, Locals),
+        mut bundle: (Scopes, Locals),
         stmt: &stmt::VarStmt,
     ) -> Result<(Scopes, Locals), Vec<String>> {
-        scopes.declare(stmt.name.lexeme.clone());
-        (scopes, locals) = self.resolve_expression((scopes, locals), &stmt.initializer)?;
-        scopes.define(stmt.name.lexeme.clone());
-        Ok((scopes, locals))
+        self.declare(&stmt.name.lexeme);
+        bundle = self.resolve_expression(bundle, &stmt.initializer)?;
+        self.define(&stmt.name.lexeme);
+
+        Ok(bundle)
     }
 
     fn visit_while(
@@ -343,21 +378,19 @@ impl expr::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for 
 
     fn visit_unary(
         &self,
-        mut bundle: (Scopes, Locals),
+        bundle: (Scopes, Locals),
         expr: &UnaryExpr,
     ) -> Result<(Scopes, Locals), Vec<String>> {
-        bundle = self.resolve_expression(bundle, &expr.right)?;
-
-        Ok(bundle)
+        self.resolve_expression(bundle, &expr.right)
     }
 
     fn visit_variable(
         &self,
-        (scopes, locals): (Scopes, Locals),
+        bundle: (Scopes, Locals),
         expr: &VariableExpr,
     ) -> Result<(Scopes, Locals), Vec<String>> {
         let name = &expr.name.lexeme;
-        match scopes.get(name) {
+        match self.scopes.borrow().get(name) {
             Some(v) if v == false => {
                 return Err(vec![format!(
                     "Can't read local variable in its own initializer."
@@ -366,10 +399,6 @@ impl expr::Visitor<(Scopes, Locals), Result<(Scopes, Locals), Vec<String>>> for 
             _ => (),
         }
 
-        self.resolve_local(
-            (scopes, locals),
-            Expr::Variable(expr.clone()),
-            &expr.name.lexeme,
-        )
+        self.resolve_local(bundle, Expr::Variable(expr.clone()), &expr.name.lexeme)
     }
 }
