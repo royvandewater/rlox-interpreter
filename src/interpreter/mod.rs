@@ -1,3 +1,5 @@
+mod environments;
+
 use std::collections::BTreeMap;
 
 use crate::environment::Environment;
@@ -7,14 +9,22 @@ use crate::stmt::*;
 use crate::tokens::{Callable, Class, Function, LoxCallable, LoxInstance, TokenType};
 use crate::{expr, tokens::Literal};
 
+use environments::Environments;
+
 use Literal as L;
 use TokenType as TT;
+
+use rust_decimal::prelude::FromPrimitive;
+use rust_decimal::Decimal;
 
 #[derive(Debug)]
 enum Error {
     ReturnValue(Literal),
     SingleError(String),
 }
+
+use Error::ReturnValue;
+use Error::SingleError;
 
 impl From<String> for Error {
     fn from(e: String) -> Self {
@@ -28,31 +38,28 @@ impl From<&str> for Error {
     }
 }
 
-use rust_decimal::prelude::FromPrimitive;
-use rust_decimal::Decimal;
-use Error::ReturnValue;
-use Error::SingleError;
-
 pub(crate) fn interpret(
-    env: Environment,
+    globals: Environment,
     locals: Locals,
     statements: &Vec<Stmt>,
 ) -> Result<(), Vec<String>> {
-    Interpreter::new(locals).interpret(env, statements)
+    Interpreter::new(globals, locals).interpret(statements)
 }
 
 struct Interpreter {
-    locals: Locals,
+    environments: Environments,
 }
 
 impl Interpreter {
-    fn new(locals: Locals) -> Interpreter {
-        Interpreter { locals }
+    fn new(globals: Environment, locals: Locals) -> Interpreter {
+        Interpreter {
+            environments: Environments::new(globals, locals),
+        }
     }
 
-    fn interpret(&self, env: Environment, statements: &Vec<Stmt>) -> Result<(), Vec<String>> {
+    fn interpret(&self, statements: &Vec<Stmt>) -> Result<(), Vec<String>> {
         for statement in statements.iter() {
-            match self.execute(env.clone(), statement) {
+            match self.execute(statement) {
                 Ok(_) => (),
                 Err(e) => {
                     return match e {
@@ -66,32 +73,23 @@ impl Interpreter {
         Ok(())
     }
 
-    fn execute(&self, environment: Environment, statement: &Stmt) -> Result<(), Error> {
-        walk_stmt(self, environment, statement)
+    fn execute(&self, statement: &Stmt) -> Result<(), Error> {
+        walk_stmt(self, (), statement)
     }
 
-    fn evaluate(&self, environment: Environment, expression: &Expr) -> Result<Literal, Error> {
-        walk_expr(self, environment, expression)
+    fn evaluate(&self, expression: &Expr) -> Result<Literal, Error> {
+        walk_expr(self, (), expression)
     }
 
-    fn execute_block<'a>(
-        &self,
-        environment: Environment,
-        statements: &Vec<Stmt>,
-    ) -> Result<(), Error> {
+    fn execute_block<'a>(&self, statements: &Vec<Stmt>) -> Result<(), Error> {
         for statement in statements {
-            self.execute(environment.clone(), statement)?;
+            self.execute(statement)?;
         }
 
         Ok(())
     }
 
-    fn call(
-        &self,
-        env: Environment,
-        callable: LoxCallable,
-        arguments: Vec<Literal>,
-    ) -> Result<Literal, Error> {
+    fn call(&self, callable: LoxCallable, arguments: Vec<Literal>) -> Result<Literal, Error> {
         if callable.arity() != arguments.len() {
             return Err(SingleError(format!(
                 "Expected {} arguments but got {}.",
@@ -106,7 +104,6 @@ impl Interpreter {
                 if let Some(initializer) = instance.find_method("init") {
                     let function = initializer.bind(instance.clone());
                     self.call(
-                        env,
                         LoxCallable::new("init".to_string(), Callable::Function(function)),
                         arguments,
                     )?;
@@ -120,60 +117,45 @@ impl Interpreter {
                     env.define(&param.lexeme, arg);
                 }
 
-                match self.execute_block(env.clone(), &f.body) {
-                    Ok(_) if f.is_initializer => Ok(env.get_at_distance(0, "this").unwrap()),
+                self.environments.push_scope(env);
+
+                let result = match self.execute_block(&f.body) {
+                    Ok(_) if f.is_initializer => {
+                        Ok(self.environments.get_at_distance(0, "this").unwrap())
+                    }
                     Ok(_) => Ok(Literal::Nil),
                     Err(e) => match e {
                         ReturnValue(value) => Ok(value),
                         e => Err(e),
                     },
-                }
+                };
+
+                self.environments.pop_scope();
+                result
             }
             Callable::Native(n) => Ok(n()),
         }
     }
 
-    fn look_up_variable(
-        &self,
-        env: Environment,
-        name: &str,
-        expr: &VariableExpr,
-    ) -> Result<Literal, Error> {
-        let value = match self.locals.get(&Expr::Variable(expr.clone())) {
-            None => env.get_global(name),
-            Some(distance) => env.get_at_distance(distance, name),
-        };
-
-        match value {
-            None => Err(SingleError(format!(
-                "variable with name '{}' not defined",
-                &expr.name.lexeme
-            ))),
-            Some(literal) => Ok(literal),
-        }
+    fn look_up_variable(&self, name: &str, expr: &VariableExpr) -> Result<Literal, Error> {
+        Ok(self.environments.look_up_variable(name, expr)?)
     }
 }
 
-impl expr::Visitor<Environment, Result<Literal, Error>> for Interpreter {
-    fn visit_assign(
-        &self,
-        mut env: Environment,
-        expression: &AssignExpr,
-    ) -> Result<Literal, Error> {
+impl expr::Visitor<(), Result<Literal, Error>> for Interpreter {
+    fn visit_assign(&self, _: (), expression: &AssignExpr) -> Result<Literal, Error> {
         let name = &expression.name.lexeme.to_string();
-        let value = self.evaluate(env.clone(), &expression.value)?;
+        let value = self.evaluate(&expression.value)?;
 
-        match self.locals.get(&Expr::Assign(expression.clone())) {
-            Some(distance) => env.assign_at_distance(distance, name, value.clone()),
-            None => env.assign_global(name, value.clone()),
-        }?;
+        self.environments
+            .assign_expression(expression.clone(), name, value.clone())?;
 
         Ok(value)
     }
 
-    fn visit_binary(&self, env: Environment, expr: &BinaryExpr) -> Result<Literal, Error> {
-        let left = self.evaluate(env.clone(), &expr.left)?;
-        let right = self.evaluate(env.clone(), &expr.right)?;
+    fn visit_binary(&self, _: (), expr: &BinaryExpr) -> Result<Literal, Error> {
+        let left = self.evaluate(&expr.left)?;
+        let right = self.evaluate(&expr.right)?;
 
         let operator = expr.operator.token_type;
 
@@ -204,25 +186,25 @@ impl expr::Visitor<Environment, Result<Literal, Error>> for Interpreter {
         }
     }
 
-    fn visit_call(&self, env: Environment, expr: &CallExpr) -> Result<Literal, Error> {
-        let callee = self.evaluate(env.clone(), &expr.callee)?;
+    fn visit_call(&self, _: (), expr: &CallExpr) -> Result<Literal, Error> {
+        let callee = self.evaluate(&expr.callee)?;
 
         let mut arguments: Vec<Literal> = Vec::new();
 
         for arg in &expr.arguments {
-            arguments.push(self.evaluate(env.clone(), &arg)?);
+            arguments.push(self.evaluate(&arg)?);
         }
 
         match callee {
-            L::Callable(f) => self.call(env, f, arguments),
+            L::Callable(f) => self.call(f, arguments),
             _ => Err(SingleError(format!(
                 "visit_call called with non function literal callee"
             ))),
         }
     }
 
-    fn visit_get(&self, env: Environment, expr: &GetExpr) -> Result<Literal, Error> {
-        match self.evaluate(env, &expr.object)? {
+    fn visit_get(&self, _: (), expr: &GetExpr) -> Result<Literal, Error> {
+        match self.evaluate(&expr.object)? {
             L::ClassInstance(i) => Ok(i.get(&expr.name.lexeme)?),
             _ => Err(Error::SingleError(
                 "Only instances have properties.".to_string(),
@@ -230,22 +212,22 @@ impl expr::Visitor<Environment, Result<Literal, Error>> for Interpreter {
         }
     }
 
-    fn visit_grouping(&self, env: Environment, expr: &GroupingExpr) -> Result<Literal, Error> {
-        self.evaluate(env, &expr.expression)
+    fn visit_grouping(&self, _: (), expr: &GroupingExpr) -> Result<Literal, Error> {
+        self.evaluate(&expr.expression)
     }
 
-    fn visit_literal(&self, _env: Environment, expr: &LiteralExpr) -> Result<Literal, Error> {
+    fn visit_literal(&self, _: (), expr: &LiteralExpr) -> Result<Literal, Error> {
         Ok(expr.value.clone())
     }
 
-    fn visit_logical(&self, env: Environment, expr: &LogicalExpr) -> Result<Literal, Error> {
-        let left = self.evaluate(env.clone(), &expr.left)?;
+    fn visit_logical(&self, _: (), expr: &LogicalExpr) -> Result<Literal, Error> {
+        let left = self.evaluate(&expr.left)?;
 
         match (evaluate_truthy(&left), expr.operator.token_type) {
-            (true, TokenType::And) => self.evaluate(env, &expr.right),
+            (true, TokenType::And) => self.evaluate(&expr.right),
             (false, TokenType::And) => Ok(left),
             (true, TokenType::Or) => Ok(left),
-            (false, TokenType::Or) => self.evaluate(env, &expr.right),
+            (false, TokenType::Or) => self.evaluate(&expr.right),
             _ => Err(SingleError(format!(
                 "visit_logical called with non and/or token: {}",
                 expr.operator
@@ -253,27 +235,26 @@ impl expr::Visitor<Environment, Result<Literal, Error>> for Interpreter {
         }
     }
 
-    fn visit_set(&self, env: Environment, expr: &SetExpr) -> Result<Literal, Error> {
-        let mut object = match self.evaluate(env.clone(), &expr.object)? {
+    fn visit_set(&self, _: (), expr: &SetExpr) -> Result<Literal, Error> {
+        let mut object = match self.evaluate(&expr.object)? {
             L::ClassInstance(o) => o,
             _ => Err("Only instances have fields.")?,
         };
 
-        let value = self.evaluate(env, &expr.value)?;
+        let value = self.evaluate(&expr.value)?;
         object.set(&expr.name.lexeme, value.clone());
         Ok(value)
     }
 
-    fn visit_this(&self, env: Environment, expr: &ThisExpr) -> Result<Literal, Error> {
+    fn visit_this(&self, _: (), expr: &ThisExpr) -> Result<Literal, Error> {
         self.look_up_variable(
-            env,
             &expr.keyword.lexeme,
             &VariableExpr::new(expr.keyword.clone()),
         )
     }
 
-    fn visit_unary(&self, env: Environment, expr: &UnaryExpr) -> Result<Literal, Error> {
-        let right = self.evaluate(env, &expr.right)?;
+    fn visit_unary(&self, _: (), expr: &UnaryExpr) -> Result<Literal, Error> {
+        let right = self.evaluate(&expr.right)?;
 
         match (expr.operator.token_type, right) {
             (TokenType::Bang, v) => Ok(Literal::Boolean(!evaluate_truthy(&v))),
@@ -291,23 +272,24 @@ impl expr::Visitor<Environment, Result<Literal, Error>> for Interpreter {
         }
     }
 
-    fn visit_variable(&self, env: Environment, expr: &VariableExpr) -> Result<Literal, Error> {
-        self.look_up_variable(env, &expr.name.lexeme, expr)
+    fn visit_variable(&self, _: (), expr: &VariableExpr) -> Result<Literal, Error> {
+        self.look_up_variable(&expr.name.lexeme, expr)
     }
 }
 
-impl crate::stmt::Visitor<Environment, Result<(), Error>> for Interpreter {
-    fn visit_block<'a>(&self, env: Environment, stmt: &BlockStmt) -> Result<(), Error> {
-        let scope_ref = Environment::with_enclosing(env);
+impl crate::stmt::Visitor<(), Result<(), Error>> for Interpreter {
+    fn visit_block<'a>(&self, _: (), stmt: &BlockStmt) -> Result<(), Error> {
+        let scope = Environment::with_enclosing(self.environments.peek());
 
-        self.execute_block(scope_ref, &stmt.statements)?;
-
-        Ok(())
+        self.environments.push_scope(scope);
+        let result = self.execute_block(&stmt.statements);
+        self.environments.pop_scope();
+        result
     }
 
-    fn visit_class(&self, mut env: Environment, stmt: &ClassStmt) -> Result<(), Error> {
+    fn visit_class(&self, _: (), stmt: &ClassStmt) -> Result<(), Error> {
         let name = stmt.name.lexeme.clone();
-        env.define(&name, L::Nil);
+        self.environments.peek().define(&name, L::Nil);
 
         let mut methods: BTreeMap<String, Function> = BTreeMap::new();
 
@@ -316,8 +298,8 @@ impl crate::stmt::Visitor<Environment, Result<(), Error>> for Interpreter {
             let params = method.params.clone();
 
             let function = match method.name.lexeme.as_str() {
-                "init" => Function::new_initializer(body, params, env.clone()),
-                _ => Function::new(body, params, env.clone()),
+                "init" => Function::new_initializer(body, params, self.environments.peek()),
+                _ => Function::new(body, params, self.environments.peek()),
             };
             methods.insert(method.name.lexeme.clone(), function);
         }
@@ -326,15 +308,17 @@ impl crate::stmt::Visitor<Environment, Result<(), Error>> for Interpreter {
             name.clone(),
             Callable::Class(Class::new(name.clone(), methods)),
         );
-        env.assign(&name, Literal::Callable(class))?;
+        self.environments.assign(&name, Literal::Callable(class))?;
         Ok(())
     }
 
-    fn visit_expression(&self, env: Environment, stmt: &ExpressionStmt) -> Result<(), Error> {
-        self.evaluate(env, &stmt.expression).map(|_| ())
+    fn visit_expression(&self, _: (), stmt: &ExpressionStmt) -> Result<(), Error> {
+        self.evaluate(&stmt.expression).map(|_| ())
     }
 
-    fn visit_function(&self, mut env: Environment, stmt: &FunctionStmt) -> Result<(), Error> {
+    fn visit_function(&self, _: (), stmt: &FunctionStmt) -> Result<(), Error> {
+        let mut env = self.environments.peek();
+
         let function = LoxCallable::new(
             stmt.name.lexeme.clone(),
             Callable::Function(Function::new(
@@ -349,40 +333,42 @@ impl crate::stmt::Visitor<Environment, Result<(), Error>> for Interpreter {
         Ok(())
     }
 
-    fn visit_if(&self, env: Environment, stmt: &IfStmt) -> Result<(), Error> {
-        let condition_result = self.evaluate(env.clone(), &stmt.condition)?;
+    fn visit_if(&self, _: (), stmt: &IfStmt) -> Result<(), Error> {
+        let condition_result = self.evaluate(&stmt.condition)?;
 
         match evaluate_truthy(&condition_result) {
-            true => self.execute(env, &stmt.then_branch),
-            false => self.execute(env, &stmt.else_branch),
+            true => self.execute(&stmt.then_branch),
+            false => self.execute(&stmt.else_branch),
         }
     }
 
-    fn visit_print(&self, env: Environment, stmt: &PrintStmt) -> Result<(), Error> {
-        let value = self.evaluate(env, &stmt.expression)?;
+    fn visit_print(&self, _: (), stmt: &PrintStmt) -> Result<(), Error> {
+        let value = self.evaluate(&stmt.expression)?;
         println!("{}", value);
         Ok(())
     }
 
-    fn visit_return(&self, env: Environment, stmt: &ReturnStmt) -> Result<(), Error> {
-        Err(ReturnValue(self.evaluate(env, &stmt.value)?))
+    fn visit_return(&self, _: (), stmt: &ReturnStmt) -> Result<(), Error> {
+        Err(ReturnValue(self.evaluate(&stmt.value)?))
     }
 
-    fn visit_var(&self, mut env: Environment, stmt: &VarStmt) -> Result<(), Error> {
-        let value = self.evaluate(env.clone(), &stmt.initializer)?;
-        env.define(&stmt.name.lexeme, value);
+    fn visit_var(&self, _: (), stmt: &VarStmt) -> Result<(), Error> {
+        let mut env = self.environments.peek();
+        let name = &stmt.name.lexeme;
+        let value = self.evaluate(&stmt.initializer)?;
+        env.define(name, value);
         Ok(())
     }
 
-    fn visit_while(&self, env: Environment, stmt: &WhileStmt) -> Result<(), Error> {
+    fn visit_while(&self, _: (), stmt: &WhileStmt) -> Result<(), Error> {
         loop {
-            let condition_result = self.evaluate(env.clone(), &stmt.condition)?;
+            let condition_result = self.evaluate(&stmt.condition)?;
 
             if !evaluate_truthy(&condition_result) {
                 return Ok(());
             }
 
-            self.execute(env.clone(), &stmt.body)?;
+            self.execute(&stmt.body)?;
         }
     }
 }

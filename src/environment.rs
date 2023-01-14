@@ -89,7 +89,7 @@ impl Environment {
         }
     }
 
-    fn get_current(&self, name: &str) -> Option<Literal> {
+    pub fn get_current(&self, name: &str) -> Option<Literal> {
         self.0.borrow().values.get(name).cloned()
     }
 

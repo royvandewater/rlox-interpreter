@@ -41,31 +41,34 @@ impl Visitor<(), String> for AstPrinter {
         self.parenthesize(&expr.operator.lexeme, vec![&expr.right])
     }
 
-    fn visit_variable(&self, _: (), _expr: &VariableExpr) -> String {
-        todo!()
+    fn visit_variable(&self, _: (), expr: &VariableExpr) -> String {
+        expr.name.to_string()
     }
 
-    fn visit_assign(&self, _: (), _expr: &AssignExpr) -> String {
-        todo!()
+    fn visit_assign(&self, _: (), expr: &AssignExpr) -> String {
+        self.parenthesize(&format!("let {}", expr.name), vec![&expr.value])
     }
 
-    fn visit_logical(&self, _: (), _expr: &LogicalExpr) -> String {
-        todo!()
+    fn visit_logical(&self, _: (), expr: &LogicalExpr) -> String {
+        self.parenthesize(&expr.operator.lexeme, vec![&expr.left, &expr.right])
     }
 
-    fn visit_call(&self, _: (), _expr: &CallExpr) -> String {
-        todo!()
+    fn visit_call(&self, _: (), expr: &CallExpr) -> String {
+        let func = walk_expr(self, (), &expr.callee);
+        self.parenthesize(&func, expr.arguments.iter().collect())
     }
 
-    fn visit_get(&self, _: (), _expr: &GetExpr) -> String {
-        todo!()
+    fn visit_get(&self, _: (), expr: &GetExpr) -> String {
+        let object = walk_expr(self, (), &expr.object);
+        format!("{}.{}", object, expr.name)
     }
 
-    fn visit_set(&self, _: (), _expr: &SetExpr) -> String {
-        todo!()
+    fn visit_set(&self, _: (), expr: &SetExpr) -> String {
+        let object = walk_expr(self, (), &expr.object);
+        format!("{}.{} = ", object, expr.name)
     }
 
-    fn visit_this(&self, _: (), _expr: &ThisExpr) -> String {
-        todo!()
+    fn visit_this(&self, _: (), expr: &ThisExpr) -> String {
+        expr.keyword.lexeme.to_string()
     }
 }

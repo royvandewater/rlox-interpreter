@@ -39,25 +39,25 @@ fn main() {
     run_prompt();
 }
 
-fn init_env() -> Environment {
-    let env = Environment::new();
-    native::define_native_functions(env.clone());
-    env
+fn init_globals() -> Environment {
+    let globals = Environment::new();
+    native::define_native_functions(globals.clone());
+    globals
 }
 
 fn run_file(filename: &String) -> Result<(), Vec<String>> {
-    let env = init_env();
+    let globals = init_globals();
     let contents = fs::read_to_string(filename)
         .map_err(|e| Vec::from([format!("Failed to read file '{}': '{}'", filename, e)]))?;
 
-    run(env, contents).map(|_| ())
+    run(globals, contents).map(|_| ())
 }
 
 fn run_prompt() {
-    let env = init_env();
+    let globals = init_globals();
 
     for line in io::stdin().lines() {
-        match run(env.clone(), line.unwrap()) {
+        match run(globals.clone(), line.unwrap()) {
             Ok(_) => {}
             Err(errors) => {
                 format!("Error running line: {:?}", errors);
@@ -66,11 +66,11 @@ fn run_prompt() {
     }
 }
 
-fn run(env: Environment, contents: String) -> Result<(), Vec<String>> {
+fn run(globals: Environment, contents: String) -> Result<(), Vec<String>> {
     let tokens: Tokens = contents.parse()?;
     let statements: Vec<Stmt> = parser::parse(tokens)?;
 
     let locals = resolver::resolve_locals(&statements)?;
 
-    interpreter::interpret(env, locals, &statements)
+    interpreter::interpret(globals, locals, &statements)
 }

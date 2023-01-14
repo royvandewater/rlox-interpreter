@@ -1,0 +1,12 @@
+
+fun foo() {
+    var a = 1;
+
+    fun bar() {
+        print a;
+    }
+
+    return bar;
+}
+
+foo()();

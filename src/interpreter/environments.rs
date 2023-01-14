@@ -1,0 +1,83 @@
+use crate::expr::*;
+use std::cell::RefCell;
+
+use crate::{environment::Environment, resolver::Locals, tokens::Literal};
+
+pub(crate) struct Environments {
+    locals: Locals,
+    stack: RefCell<Vec<Environment>>,
+}
+
+impl Environments {
+    pub fn new(globals: Environment, locals: Locals) -> Environments {
+        Environments {
+            locals,
+            stack: RefCell::new(vec![globals]),
+        }
+    }
+
+    pub(crate) fn assign(&self, name: &str, value: Literal) -> Result<(), String> {
+        self.peek().assign(&name, value)
+    }
+
+    pub(crate) fn assign_expression(
+        &self,
+        expression: AssignExpr,
+        name: &str,
+        value: Literal,
+    ) -> Result<(), String> {
+        match self.locals.get(&Expr::Assign(expression)) {
+            Some(distance) => self.assign_at_distance(distance, name, value),
+            None => self.peek().assign_global(name, value),
+        }
+    }
+
+    pub(crate) fn assign_at_distance(
+        &self,
+        distance: usize,
+        name: &str,
+        value: Literal,
+    ) -> Result<(), String> {
+        self.peek().assign_at_distance(distance, name, value)
+    }
+
+    pub fn push_scope(&self, scope: Environment) {
+        self.stack.borrow_mut().push(scope)
+    }
+
+    pub fn pop_scope(&self) {
+        self.stack.borrow_mut().pop();
+    }
+
+    pub(crate) fn get_at_distance(&self, distance: usize, name: &str) -> Option<Literal> {
+        self.peek().get_at_distance(distance, name)
+    }
+
+    fn get_global(&self, name: &str) -> Option<Literal> {
+        self.peek().get_global(name)
+    }
+
+    pub(crate) fn look_up_variable(
+        &self,
+        name: &str,
+        expr: &VariableExpr,
+    ) -> Result<Literal, String> {
+        let value = match self.locals.get(&Expr::Variable(expr.clone())) {
+            None => self.get_global(name),
+            Some(distance) => self.get_at_distance(distance, name),
+        };
+
+        match value {
+            // None => Err(format!(
+            //     "variable with name '{}' not defined",
+            //     &expr.name.lexeme
+            // )),
+            None => panic!("variable with name '{}' not defined", &expr.name.lexeme),
+            Some(literal) => Ok(literal),
+        }
+    }
+
+    pub(crate) fn peek(&self) -> Environment {
+        self.stack.borrow().last().unwrap().clone()
+    }
+}
