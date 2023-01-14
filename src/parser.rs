@@ -8,12 +8,25 @@ use crate::tokens::{Literal, Token, TokenType, Tokens};
 use crate::{expr, expr::*, stmt};
 
 pub(crate) fn parse(tokens: Tokens) -> Result<Vec<Stmt>, Vec<String>> {
-    Parser(tokens.into()).parse()
+    Parser {
+        tokens: tokens.into(),
+        current_id: 0,
+    }
+    .parse()
 }
 
-struct Parser(VecDeque<Token>);
+struct Parser {
+    tokens: VecDeque<Token>,
+    current_id: usize,
+}
 
 impl Parser {
+    fn gen_id(&mut self) -> usize {
+        let id = self.current_id;
+        self.current_id += 1;
+        id
+    }
+
     fn parse(&mut self) -> Result<Vec<Stmt>, Vec<String>> {
         let mut statements: Vec<Stmt> = Vec::new();
 
@@ -61,7 +74,7 @@ impl Parser {
 
         self.consume(TokenType::RightBrace, "Expect '}' after class body.")?;
 
-        Ok(Stmt::Class(ClassStmt::new(name, methods)))
+        Ok(Stmt::Class(ClassStmt::new(self.gen_id(), name, methods)))
     }
 
     fn function(&mut self, kind: &str) -> Result<Stmt, Vec<String>> {
@@ -103,7 +116,12 @@ impl Parser {
 
         let body = self.block()?;
 
-        return Ok(Stmt::Function(FunctionStmt::new(name, params, body)));
+        return Ok(Stmt::Function(FunctionStmt::new(
+            self.gen_id(),
+            name,
+            params,
+            body,
+        )));
     }
 
     fn var_declaration(&mut self) -> Result<Stmt, Vec<String>> {
@@ -114,14 +132,14 @@ impl Parser {
                 _ = self.advance();
                 self.expression()?
             }
-            false => Expr::Literal(LiteralExpr::new(Literal::Nil)),
+            false => Expr::Literal(LiteralExpr::new(self.gen_id(), Literal::Nil)),
         };
 
         self.consume(
             TokenType::Semicolon,
             "Expect ';' after variable declaration",
         )?;
-        Ok(Stmt::Var(VarStmt::new(name, initializer)))
+        Ok(Stmt::Var(VarStmt::new(self.gen_id(), name, initializer)))
     }
 
     fn statement(&mut self) -> Result<Stmt, Vec<String>> {
@@ -149,7 +167,7 @@ impl Parser {
                 }
                 TokenType::LeftBrace => {
                     self.advance()?;
-                    Ok(Stmt::Block(BlockStmt::new(self.block()?)))
+                    Ok(Stmt::Block(BlockStmt::new(self.gen_id(), self.block()?)))
                 }
                 _ => self.expression_statement(),
             },
@@ -163,7 +181,7 @@ impl Parser {
         let initializer = match self.peek_token_type() {
             TokenType::Semicolon => {
                 self.advance()?;
-                stmt::noop()
+                stmt::noop(self.gen_id())
             }
             TokenType::Var => {
                 self.advance()?;
@@ -173,13 +191,13 @@ impl Parser {
         };
 
         let condition = match self.peek_token_type() {
-            TokenType::Semicolon => expr::nil(),
+            TokenType::Semicolon => expr::nil(self.gen_id()),
             _ => self.expression()?,
         };
         self.consume(TokenType::Semicolon, "Expect ';' after 'for' condition.")?;
 
         let increment = match self.peek_token_type() {
-            TokenType::RightParen => expr::nil(),
+            TokenType::RightParen => expr::nil(self.gen_id()),
             _ => self.expression()?,
         };
 
@@ -188,13 +206,14 @@ impl Parser {
         let original_body = self.statement()?;
 
         #[rustfmt::skip]
-        Ok(Stmt::Block(BlockStmt::new(vec![
+        Ok(Stmt::Block(BlockStmt::new(self.gen_id(), vec![
             initializer,
             Stmt::While(WhileStmt::new(
+                self.gen_id(),
                 condition,
-                Stmt::Block(BlockStmt::new(vec![
+                Stmt::Block(BlockStmt::new(self.gen_id(), vec![
                     original_body,
-                    Stmt::Expression(ExpressionStmt::new(increment)),
+                    Stmt::Expression(ExpressionStmt::new(self.gen_id(), increment)),
                 ])),
             )),
         ])))
@@ -207,7 +226,7 @@ impl Parser {
 
         let body = self.statement()?;
 
-        Ok(Stmt::While(WhileStmt::new(condition, body)))
+        Ok(Stmt::While(WhileStmt::new(self.gen_id(), condition, body)))
     }
 
     fn if_statement(&mut self) -> Result<Stmt, Vec<String>> {
@@ -222,32 +241,40 @@ impl Parser {
                 self.advance()?;
                 self.statement()?
             }
-            _ => stmt::noop(),
+            _ => stmt::noop(self.gen_id()),
         };
 
-        Ok(Stmt::If(IfStmt::new(condition, then_branch, else_branch)))
+        Ok(Stmt::If(IfStmt::new(
+            self.gen_id(),
+            condition,
+            then_branch,
+            else_branch,
+        )))
     }
 
     fn return_statement(&mut self) -> Result<Stmt, Vec<String>> {
         let value = match self.peek_token_type() {
-            TokenType::Semicolon => expr::nil(),
+            TokenType::Semicolon => expr::nil(self.gen_id()),
             _ => self.expression()?,
         };
         self.consume(TokenType::Semicolon, "Expect ';' return statement value.")?;
 
-        Ok(Stmt::Return(ReturnStmt::new(value)))
+        Ok(Stmt::Return(ReturnStmt::new(self.gen_id(), value)))
     }
 
     fn print_statement(&mut self) -> Result<Stmt, Vec<String>> {
         let value = self.expression()?;
         self.consume(TokenType::Semicolon, "Expect ';' after value.")?;
-        Ok(Stmt::Print(PrintStmt::new(value)))
+        Ok(Stmt::Print(PrintStmt::new(self.gen_id(), value)))
     }
 
     fn expression_statement(&mut self) -> Result<Stmt, Vec<String>> {
         let expression = self.expression()?;
         self.consume(TokenType::Semicolon, "Expect ';' after expression.")?;
-        Ok(Stmt::Expression(ExpressionStmt::new(expression)))
+        Ok(Stmt::Expression(ExpressionStmt::new(
+            self.gen_id(),
+            expression,
+        )))
     }
 
     fn block(&mut self) -> Result<Vec<Stmt>, Vec<String>> {
@@ -274,10 +301,15 @@ impl Parser {
             let value = self.assignment()?;
 
             return match expr {
-                Expr::Get(g) => Ok(Expr::Set(SetExpr::new(*g.object, g.name, value))),
+                Expr::Get(g) => Ok(Expr::Set(SetExpr::new(
+                    self.gen_id(),
+                    *g.object,
+                    g.name,
+                    value,
+                ))),
                 Expr::Variable(v) => {
                     let name = v.name;
-                    Ok(Expr::Assign(AssignExpr::new(name, value)))
+                    Ok(Expr::Assign(AssignExpr::new(self.gen_id(), name, value)))
                 }
                 _ => Err(vec![format!("Invalid assignment target.")]),
             };
@@ -292,7 +324,7 @@ impl Parser {
         while self.check_one(TokenType::Or) {
             let operator = self.advance()?;
             let right = self.and()?;
-            expression = Expr::Logical(LogicalExpr::new(expression, operator, right))
+            expression = Expr::Logical(LogicalExpr::new(self.gen_id(), expression, operator, right))
         }
 
         Ok(expression)
@@ -304,7 +336,7 @@ impl Parser {
         while self.check_one(TokenType::And) {
             let operator = self.advance()?;
             let right = self.equality()?;
-            expression = Expr::Logical(LogicalExpr::new(expression, operator, right))
+            expression = Expr::Logical(LogicalExpr::new(self.gen_id(), expression, operator, right))
         }
 
         Ok(expression)
@@ -317,7 +349,7 @@ impl Parser {
             let operator = self.advance()?;
             let right = self.comparison()?;
 
-            expression = Expr::Binary(BinaryExpr::new(expression, operator, right));
+            expression = Expr::Binary(BinaryExpr::new(self.gen_id(), expression, operator, right));
         }
 
         Ok(expression)
@@ -335,7 +367,7 @@ impl Parser {
             let operator = self.advance()?;
             let right = self.term()?;
 
-            expression = Expr::Binary(BinaryExpr::new(expression, operator, right));
+            expression = Expr::Binary(BinaryExpr::new(self.gen_id(), expression, operator, right));
         }
 
         Ok(expression)
@@ -348,7 +380,7 @@ impl Parser {
             let operator = self.advance()?;
             let right = self.factor()?;
 
-            expression = Expr::Binary(BinaryExpr::new(expression, operator, right));
+            expression = Expr::Binary(BinaryExpr::new(self.gen_id(), expression, operator, right));
         }
 
         Ok(expression)
@@ -361,7 +393,7 @@ impl Parser {
             let operator = self.advance()?;
             let right = self.unary()?;
 
-            expression = Expr::Binary(BinaryExpr::new(expression, operator, right));
+            expression = Expr::Binary(BinaryExpr::new(self.gen_id(), expression, operator, right));
         }
 
         Ok(expression)
@@ -375,7 +407,7 @@ impl Parser {
         let operator = self.advance()?;
         let right = self.unary()?;
 
-        Ok(Expr::Unary(UnaryExpr::new(operator, right)))
+        Ok(Expr::Unary(UnaryExpr::new(self.gen_id(), operator, right)))
     }
 
     fn call(&mut self) -> Result<Expr, Vec<String>> {
@@ -391,7 +423,7 @@ impl Parser {
                     self.advance()?;
                     let name =
                         self.consume(TokenType::Identifier, "Expect property name after '.'")?;
-                    expr = Expr::Get(GetExpr::new(expr, name))
+                    expr = Expr::Get(GetExpr::new(self.gen_id(), expr, name))
                 }
                 _ => break,
             }
@@ -419,24 +451,25 @@ impl Parser {
 
         self.consume(TokenType::RightParen, "Expect ')' after arguments.")?;
 
-        Ok(Expr::Call(CallExpr::new(callee, arguments)))
+        Ok(Expr::Call(CallExpr::new(self.gen_id(), callee, arguments)))
     }
 
     fn primary(&mut self) -> Result<Expr, Vec<String>> {
         let next_token = self.advance()?;
+        let id = self.gen_id();
 
         let expression = match next_token.token_type {
-            TokenType::False => Expr::Literal(LiteralExpr::new(Literal::Boolean(false))),
-            TokenType::True => Expr::Literal(LiteralExpr::new(Literal::Boolean(true))),
-            TokenType::Nil => Expr::Literal(LiteralExpr::new(Literal::Nil)),
-            TokenType::Number => Expr::Literal(LiteralExpr::new(next_token.literal)),
-            TokenType::String => Expr::Literal(LiteralExpr::new(next_token.literal)),
-            TokenType::Identifier => Expr::Variable(VariableExpr::new(next_token)),
-            TokenType::This => Expr::This(ThisExpr::new(next_token)),
+            TokenType::False => Expr::Literal(LiteralExpr::new(id, Literal::Boolean(false))),
+            TokenType::True => Expr::Literal(LiteralExpr::new(id, Literal::Boolean(true))),
+            TokenType::Nil => Expr::Literal(LiteralExpr::new(id, Literal::Nil)),
+            TokenType::Number => Expr::Literal(LiteralExpr::new(id, next_token.literal)),
+            TokenType::String => Expr::Literal(LiteralExpr::new(id, next_token.literal)),
+            TokenType::Identifier => Expr::Variable(VariableExpr::new(id, next_token)),
+            TokenType::This => Expr::This(ThisExpr::new(id, next_token)),
             TokenType::LeftParen => {
                 let inner_expression = self.expression()?;
                 self.consume(TokenType::RightParen, "Expect ')' after expression")?;
-                Expr::Grouping(GroupingExpr::new(inner_expression))
+                Expr::Grouping(GroupingExpr::new(id, inner_expression))
             }
             _ => Err(Vec::from([format!(
                 "Unrecognized primary token: {}",
@@ -459,7 +492,7 @@ impl Parser {
     }
 
     fn peek(&self) -> Option<&Token> {
-        match self.0.front() {
+        match self.tokens.front() {
             None => None,
             Some(eof) if TokenType::Eof == eof.token_type => None,
             Some(token) => Some(token),
@@ -474,7 +507,7 @@ impl Parser {
     }
 
     fn advance(&mut self) -> Result<Token, Vec<String>> {
-        match self.0.pop_front() {
+        match self.tokens.pop_front() {
             None => Err(Vec::from([
                 "Tried to pop_front on empty dequeue".to_string()
             ])),

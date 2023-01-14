@@ -69,7 +69,6 @@ fn run_prompt() {
 fn run(globals: Environment, contents: String) -> Result<(), Vec<String>> {
     let tokens: Tokens = contents.parse()?;
     let statements: Vec<Stmt> = parser::parse(tokens)?;
-
     let locals = resolver::resolve_locals(&statements)?;
 
     interpreter::interpret(globals, locals, &statements)

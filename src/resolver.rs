@@ -55,7 +55,7 @@ impl Scopes {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct Locals(HashMap<Expr, usize>);
 impl Locals {
     fn new() -> Locals {
@@ -274,7 +274,7 @@ impl expr::Visitor<(), Result<(), Vec<String>>> for Resolver {
 
     fn visit_this(&self, _: (), expr: &ThisExpr) -> Result<(), Vec<String>> {
         self.resolve_local(
-            Expr::Variable(VariableExpr::new(expr.keyword.clone())),
+            Expr::Variable(VariableExpr::new(expr.id, expr.keyword.clone())),
             &expr.keyword.lexeme,
         )
     }

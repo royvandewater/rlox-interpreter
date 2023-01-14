@@ -249,7 +249,7 @@ impl expr::Visitor<(), Result<Literal, Error>> for Interpreter {
     fn visit_this(&self, _: (), expr: &ThisExpr) -> Result<Literal, Error> {
         self.look_up_variable(
             &expr.keyword.lexeme,
-            &VariableExpr::new(expr.keyword.clone()),
+            &VariableExpr::new(expr.id, expr.keyword.clone()),
         )
     }
 

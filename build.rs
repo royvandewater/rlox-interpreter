@@ -180,12 +180,14 @@ fn define_type(base_title: &str, rule: &str) -> Tokens {
     quote! {
         #[derive(Clone, Debug, Hash, Eq, PartialEq)]
         pub(crate) struct $class {
+            pub id: usize,
             $(define_struct_fields(&fields))
         }
 
         impl $class {
-            pub(crate) fn new($(define_constructor_parameters(&fields))) -> $class {
+            pub(crate) fn new(id: usize, $(define_constructor_parameters(&fields))) -> $class {
                 $class {
+                    id: id,
                     $(define_constructor_assignment(&fields))
                 }
             }
