@@ -172,6 +172,8 @@ impl stmt::Visitor<Result<(), Vec<String>>> for Resolver {
             }
 
             self.resolve_expression(&Expr::Variable(superclass.clone()))?;
+            self.begin_scope();
+            self.define("super");
         }
 
         self.begin_scope();
@@ -182,6 +184,9 @@ impl stmt::Visitor<Result<(), Vec<String>>> for Resolver {
         }
 
         self.end_scope();
+        if stmt.superclass.is_some() {
+            self.end_scope()
+        }
 
         Ok(())
     }
@@ -278,6 +283,10 @@ impl expr::Visitor<Result<(), Vec<String>>> for Resolver {
         self.resolve_expression(&expr.object)?;
 
         Ok(())
+    }
+
+    fn visit_super(&self, expr: &SuperExpr) -> Result<(), Vec<String>> {
+        self.resolve_local(Expr::Super(expr.clone()), &expr.keyword.lexeme)
     }
 
     fn visit_this(&self, expr: &ThisExpr) -> Result<(), Vec<String>> {

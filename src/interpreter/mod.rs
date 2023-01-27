@@ -246,6 +246,21 @@ impl expr::Visitor<Result<Literal, Error>> for Interpreter {
         Ok(value)
     }
 
+    fn visit_super(&self, expr: &SuperExpr) -> Result<Literal, Error> {
+        let (superclass, object) = self.environments.look_up_super_and_object(expr)?;
+
+        match superclass.find_method(&expr.method.lexeme) {
+            None => Err(SingleError(format!(
+                "Undefined property '{}'.",
+                expr.method.lexeme
+            ))),
+            Some(method) => Ok(Literal::Callable(LoxCallable::new(
+                expr.method.lexeme.to_string(),
+                Callable::Function(method.bind(object)),
+            ))),
+        }
+    }
+
     fn visit_this(&self, expr: &ThisExpr) -> Result<Literal, Error> {
         self.look_up_variable(
             &expr.keyword.lexeme,
@@ -312,6 +327,12 @@ impl crate::stmt::Visitor<Result<(), Error>> for Interpreter {
         let name = stmt.name.lexeme.clone();
         self.environments.peek().define(&name, L::Nil);
 
+        if let Some(s) = superclass.clone() {
+            let mut scope = Environment::with_enclosing(self.environments.peek());
+            scope.define("super", Literal::ClassInstance(s));
+            self.environments.push_scope(scope);
+        }
+
         let mut methods: BTreeMap<String, Function> = BTreeMap::new();
 
         for method in stmt.methods.iter() {
@@ -327,8 +348,13 @@ impl crate::stmt::Visitor<Result<(), Error>> for Interpreter {
 
         let class = LoxCallable::new(
             name.clone(),
-            Callable::Class(Class::new(name.clone(), superclass, methods)),
+            Callable::Class(Class::new(name.clone(), superclass.clone(), methods)),
         );
+
+        if superclass.is_some() {
+            self.environments.pop_scope();
+        }
+
         self.environments.assign(&name, Literal::Callable(class))?;
         Ok(())
     }

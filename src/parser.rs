@@ -486,6 +486,13 @@ impl Parser {
                 self.consume(TokenType::RightParen, "Expect ')' after expression")?;
                 Expr::Grouping(GroupingExpr::new(id, inner_expression))
             }
+            TokenType::Super => {
+                let keyword = next_token;
+                self.consume(TokenType::Dot, "Expect '.' after 'super'.")?;
+                let method =
+                    self.consume(TokenType::Identifier, "Expect superclass method name.")?;
+                Expr::Super(SuperExpr::new(id, keyword, method))
+            }
             _ => Err(Vec::from([format!(
                 "Unrecognized primary token: {}",
                 next_token

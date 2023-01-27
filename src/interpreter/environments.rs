@@ -1,4 +1,4 @@
-use crate::expr::*;
+use crate::{expr::*, tokens::LoxInstance};
 use std::cell::RefCell;
 
 use crate::{environment::Environment, resolver::Locals, tokens::Literal};
@@ -68,12 +68,25 @@ impl Environments {
         };
 
         match value {
-            // None => Err(format!(
-            //     "variable with name '{}' not defined",
-            //     &expr.name.lexeme
-            // )),
             None => panic!("variable with name '{}' not defined", &expr.name.lexeme),
             Some(literal) => Ok(literal),
+        }
+    }
+
+    pub(crate) fn look_up_super_and_object(
+        &self,
+        expr: &SuperExpr,
+    ) -> Result<(LoxInstance, LoxInstance), String> {
+        let distance = self.locals.get(&Expr::Super(expr.clone())).unwrap();
+        let superclass = self.get_at_distance(distance, "super").unwrap();
+        let object = self.get_at_distance(distance - 1, "this").unwrap();
+
+        match (superclass, object) {
+            (Literal::ClassInstance(s), Literal::ClassInstance(o)) => Ok((s, o)),
+            (Literal::ClassInstance(_), _) => {
+                Err("Could not resolve 'this' when looking up superclass".into())
+            }
+            _ => Err("Could not resolve 'super' when looking up superclass".into()),
         }
     }
 

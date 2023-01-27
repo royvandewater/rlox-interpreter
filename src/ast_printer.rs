@@ -71,4 +71,8 @@ impl Visitor<String> for AstPrinter {
     fn visit_this(&self, expr: &ThisExpr) -> String {
         expr.keyword.lexeme.to_string()
     }
+
+    fn visit_super(&self, expr: &SuperExpr) -> String {
+        expr.keyword.lexeme.to_string()
+    }
 }
