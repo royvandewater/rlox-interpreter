@@ -10,12 +10,21 @@ use crate::environment::Environment;
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct Class {
     pub name: String,
+    pub superclass: Option<LoxInstance>,
     pub methods: BTreeMap<String, Function>,
 }
 
 impl Class {
-    pub(crate) fn new(name: String, methods: BTreeMap<String, Function>) -> Self {
-        Self { name, methods }
+    pub(crate) fn new(
+        name: String,
+        superclass: Option<LoxInstance>,
+        methods: BTreeMap<String, Function>,
+    ) -> Self {
+        Self {
+            name,
+            superclass,
+            methods,
+        }
     }
 }
 

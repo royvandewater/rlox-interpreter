@@ -24,7 +24,7 @@ const EXPRESSIONS: &'static RulesList = &[
 
 const STATEMENTS: &'static RulesList = &[
     "Block      : Vec<Stmt> statements",
-    "Class      : Token name, Vec<FunctionStmt> methods",
+    "Class      : Token name, Option<VariableExpr> superclass, Vec<FunctionStmt> methods",
     "Expression : Expr expression",
     "Function   : Token name, Vec<Token> params, Vec<Stmt> body",
     "If         : Expr condition, Stmt then_branch, Stmt else_branch",
@@ -97,9 +97,11 @@ fn optional_imports(base_snake: &str) -> Tokens {
         }
         "stmt" => {
             let expr = rust::import("crate::expr", "Expr");
+            let variable_expr = rust::import("crate::expr", "VariableExpr");
 
             quote! {
                 type Expr = super::$expr;
+                type VariableExpr = super::$variable_expr;
             }
         }
         _ => quote! {},
@@ -180,6 +182,9 @@ fn define_type(base_title: &str, rule: &str) -> Tokens {
     quote! {
         #[derive(Clone, Debug, Hash, Eq, PartialEq)]
         pub(crate) struct $class {
+            $("// each instance needs an id to make it unique when we hash it")
+            $("// otherwise two variables with the same name will hash the same")
+            $("// causing the resolver to mess up for loops")
             pub id: usize,
             $(define_struct_fields(&fields))
         }

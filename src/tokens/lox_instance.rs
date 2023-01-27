@@ -37,7 +37,13 @@ impl LoxInstance {
     }
 
     pub(crate) fn find_method(&self, name: &str) -> Option<Function> {
-        self.0.borrow().class.methods.get(name).cloned()
+        let class = &self.0.borrow().class;
+
+        match (class.methods.get(name).cloned(), &class.superclass) {
+            (Some(method), _) => Some(method),
+            (None, Some(superclass)) => superclass.find_method(name),
+            (None, None) => None,
+        }
     }
 }
 

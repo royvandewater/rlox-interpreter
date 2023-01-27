@@ -288,6 +288,27 @@ impl crate::stmt::Visitor<Result<(), Error>> for Interpreter {
     }
 
     fn visit_class(&self, stmt: &ClassStmt) -> Result<(), Error> {
+        let superclass = match &stmt.superclass {
+            None => None,
+            Some(expression) => match self.evaluate(&Expr::Variable(expression.clone()))? {
+                L::Callable(callable) => match callable.callable {
+                    Callable::Class(class) => Some(LoxInstance::new(class)),
+                    c => {
+                        return Err(SingleError(format!(
+                            "Superclass must be a class. got {:?}",
+                            c
+                        )))
+                    }
+                },
+                c => {
+                    return Err(SingleError(format!(
+                        "Superclass must be a class. got {}",
+                        c
+                    )))
+                }
+            },
+        };
+
         let name = stmt.name.lexeme.clone();
         self.environments.peek().define(&name, L::Nil);
 
@@ -306,7 +327,7 @@ impl crate::stmt::Visitor<Result<(), Error>> for Interpreter {
 
         let class = LoxCallable::new(
             name.clone(),
-            Callable::Class(Class::new(name.clone(), methods)),
+            Callable::Class(Class::new(name.clone(), superclass, methods)),
         );
         self.environments.assign(&name, Literal::Callable(class))?;
         Ok(())

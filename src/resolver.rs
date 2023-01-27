@@ -166,6 +166,14 @@ impl stmt::Visitor<Result<(), Vec<String>>> for Resolver {
         self.declare(&stmt.name.lexeme);
         self.define(&stmt.name.lexeme);
 
+        if let Some(superclass) = &stmt.superclass {
+            if stmt.name.lexeme == superclass.name.lexeme {
+                return Err(vec![format!("A class can't inherit from itself.")]);
+            }
+
+            self.resolve_expression(&Expr::Variable(superclass.clone()))?;
+        }
+
         self.begin_scope();
         self.force_define("this");
 
