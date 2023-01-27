@@ -38,6 +38,8 @@ fn main() -> anyhow::Result<()> {
     define_ast("expr", EXPRESSIONS)?;
     define_ast("stmt", STATEMENTS)?;
 
+    println!("cargo:rerun-if-changed=build.rs");
+
     Ok(())
 }
 
@@ -80,8 +82,6 @@ fn define_ast(base: &str, rules: &RulesList) -> anyhow::Result<()> {
     let fmt = fmt::Config::from_lang::<Rust>().with_indentation(fmt::Indentation::Space(4));
     let config = rust::Config::default().with_default_import(rust::ImportMode::Direct);
     tokens.format_file(&mut w.as_formatter(&fmt), &config)?;
-
-    println!("cargo:rerun-if-changed=build.rs");
 
     Ok(())
 }
