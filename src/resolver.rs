@@ -43,6 +43,13 @@ impl Scopes {
         self.0.last_mut().unwrap().insert(name, true);
     }
 
+    fn top_contains(&self, name: &str) -> bool {
+        match self.0.last() {
+            None => false,
+            Some(map) => map.contains_key(name),
+        }
+    }
+
     fn get(&self, name: &str) -> Option<bool> {
         match self.0.last() {
             None => None,
@@ -102,8 +109,17 @@ impl Resolver {
         self.scopes.borrow_mut().force_define(name.to_string());
     }
 
-    fn declare(&self, name: &str) {
-        self.scopes.borrow_mut().declare(name.to_string())
+    fn declare(&self, name: &str) -> Result<(), Vec<String>> {
+        let mut scope = self.scopes.borrow_mut();
+
+        if scope.top_contains(name) {
+            return Err(vec![format!(
+                "Already a variable with this name in this scope."
+            )]);
+        }
+
+        scope.declare(name.to_string());
+        Ok(())
     }
 
     fn define(&self, name: &str) {
@@ -126,7 +142,7 @@ impl Resolver {
         self.begin_scope();
 
         for param in stmt.params.iter() {
-            self.declare(&param.lexeme);
+            self.declare(&param.lexeme)?;
             self.define(&param.lexeme);
         }
 
@@ -163,7 +179,7 @@ impl stmt::Visitor<Result<(), Vec<String>>> for Resolver {
     }
 
     fn visit_class(&self, stmt: &ClassStmt) -> Result<(), Vec<String>> {
-        self.declare(&stmt.name.lexeme);
+        self.declare(&stmt.name.lexeme)?;
         self.define(&stmt.name.lexeme);
 
         if let Some(superclass) = &stmt.superclass {
@@ -196,7 +212,7 @@ impl stmt::Visitor<Result<(), Vec<String>>> for Resolver {
     }
 
     fn visit_function(&self, stmt: &stmt::FunctionStmt) -> Result<(), Vec<String>> {
-        self.declare(&stmt.name.lexeme);
+        self.declare(&stmt.name.lexeme)?;
         self.define(&stmt.name.lexeme);
 
         self.resolve_function(stmt)
@@ -219,7 +235,7 @@ impl stmt::Visitor<Result<(), Vec<String>>> for Resolver {
     }
 
     fn visit_var(&self, stmt: &stmt::VarStmt) -> Result<(), Vec<String>> {
-        self.declare(&stmt.name.lexeme);
+        self.declare(&stmt.name.lexeme)?;
         self.resolve_expression(&stmt.initializer)?;
         self.define(&stmt.name.lexeme);
 
