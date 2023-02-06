@@ -43,7 +43,16 @@ pub(crate) fn interpret(
     locals: Locals,
     statements: &Vec<Stmt>,
 ) -> Result<(), Vec<String>> {
-    Interpreter::new(globals, locals).interpret(statements)
+    Interpreter::new(globals, locals)
+        .interpret(statements)
+        .map_err(prepend_interpreter_error)
+}
+
+fn prepend_interpreter_error(errors: Vec<String>) -> Vec<String> {
+    errors
+        .iter()
+        .map(|error| format!("Runtime Error: {}", error))
+        .collect()
 }
 
 struct Interpreter {
