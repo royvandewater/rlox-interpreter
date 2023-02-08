@@ -50,6 +50,7 @@ run_tests_that_should_error(){
     run_test $verbose "$file"
 
     if [ $? -eq 0 ]; then
+      echo "test $file should have errored but did not"
       run_test 0 "$file"
     fi
   done
