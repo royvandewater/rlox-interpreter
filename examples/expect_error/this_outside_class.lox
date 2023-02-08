@@ -1,0 +1,5 @@
+fun foo() {
+    return this.bar();
+}
+
+foo();

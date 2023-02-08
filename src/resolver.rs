@@ -382,6 +382,10 @@ impl expr::Visitor<Result<(), SingleError>> for Resolver {
     }
 
     fn visit_this(&self, expr: &ThisExpr) -> Result<(), SingleError> {
+        if let ClassType::None = *self.current_class.borrow() {
+            return Err("Can't use 'this' outside of a class.".into());
+        }
+
         self.resolve_local(
             Expr::Variable(VariableExpr::new(expr.id, expr.keyword.clone())),
             &expr.keyword.lexeme,
