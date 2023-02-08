@@ -105,7 +105,6 @@ fn prepend_resolver_error(error: SingleError) -> Vec<String> {
     vec![format!("Resolver Error: {}", error.0)]
 }
 
-#[derive(Debug)]
 enum FunctionType {
     None,
     Function,
@@ -113,10 +112,18 @@ enum FunctionType {
     Method,
 }
 
+#[derive(Clone, Copy)]
+enum ClassType {
+    None,
+    Class,
+    Subclass,
+}
+
 struct Resolver {
     locals: RefCell<Locals>,
     scopes: RefCell<Scopes>,
     current_function: RefCell<FunctionType>,
+    current_class: RefCell<ClassType>,
 }
 
 impl Resolver {
@@ -125,6 +132,7 @@ impl Resolver {
             locals: RefCell::new(Locals::new()),
             scopes: RefCell::new(Scopes::new()),
             current_function: RefCell::new(FunctionType::None),
+            current_class: RefCell::new(ClassType::None),
         }
     }
 
@@ -217,11 +225,14 @@ impl stmt::Visitor<Result<(), SingleError>> for Resolver {
         self.declare(&stmt.name.lexeme)?;
         self.define(&stmt.name.lexeme);
 
+        let enclosing_class = self.current_class.replace(ClassType::Class);
+
         if let Some(superclass) = &stmt.superclass {
             if stmt.name.lexeme == superclass.name.lexeme {
                 return Err("A class can't inherit from itself.".into());
             }
 
+            self.current_class.replace(ClassType::Subclass);
             self.resolve_expression(&Expr::Variable(superclass.clone()))?;
             self.begin_scope();
             self.define("super");
@@ -242,6 +253,8 @@ impl stmt::Visitor<Result<(), SingleError>> for Resolver {
         if stmt.superclass.is_some() {
             self.end_scope()
         }
+
+        self.current_class.replace(enclosing_class);
 
         Ok(())
     }
@@ -361,7 +374,11 @@ impl expr::Visitor<Result<(), SingleError>> for Resolver {
     }
 
     fn visit_super(&self, expr: &SuperExpr) -> Result<(), SingleError> {
-        self.resolve_local(Expr::Super(expr.clone()), &expr.keyword.lexeme)
+        match *self.current_class.borrow() {
+            ClassType::None => Err("Can't use 'super' outside of a class.".into()),
+            ClassType::Class => Err("Can't use 'super' in a class with no superclass.".into()),
+            _ => self.resolve_local(Expr::Super(expr.clone()), &expr.keyword.lexeme),
+        }
     }
 
     fn visit_this(&self, expr: &ThisExpr) -> Result<(), SingleError> {

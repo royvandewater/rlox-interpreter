@@ -30,8 +30,8 @@ fn main() {
         match run_file(args.last().unwrap()) {
             Ok(_) => process::exit(0),
             Err(errors) => {
-                eprintln!("Error running file:");
-                errors.iter().for_each(|e| eprintln!("\t{}", e));
+                eprintln!("Error running file:\n");
+                errors.iter().for_each(|e| eprintln!("{}", e));
                 process::exit(1);
             }
         };
