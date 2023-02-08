@@ -3,6 +3,7 @@ use std::{cell::RefCell, collections::HashMap, slice::Iter};
 use crate::{
     expr::{self, *},
     stmt::{self, *},
+    tokens::Literal,
 };
 
 struct SingleError(String);
@@ -104,10 +105,11 @@ fn prepend_resolver_error(error: SingleError) -> Vec<String> {
     vec![format!("Resolver Error: {}", error.0)]
 }
 
+#[derive(Debug)]
 enum FunctionType {
     None,
     Function,
-    // Initializer,
+    Initializer,
     Method,
 }
 
@@ -229,7 +231,11 @@ impl stmt::Visitor<Result<(), SingleError>> for Resolver {
         self.force_define("this");
 
         for method in stmt.methods.iter() {
-            self.resolve_function(method, FunctionType::Method)?;
+            let function_type = match method.name.lexeme.as_str() {
+                "init" => FunctionType::Initializer,
+                _ => FunctionType::Method,
+            };
+            self.resolve_function(method, function_type)?;
         }
 
         self.end_scope();
@@ -265,7 +271,13 @@ impl stmt::Visitor<Result<(), SingleError>> for Resolver {
 
     fn visit_return(&self, stmt: &stmt::ReturnStmt) -> Result<(), SingleError> {
         if let FunctionType::None = *self.current_function.borrow() {
-            return Err("Can't return from top-level code.".into());
+            return Err("Cannot return from top-level code.".into());
+        }
+
+        if let FunctionType::Initializer = *self.current_function.borrow() {
+            if !is_literal_nil(&stmt.value) {
+                return Err("Cannot return a value from an initializer.".into());
+            }
         }
 
         self.resolve_expression(&stmt.value)
@@ -284,6 +296,16 @@ impl stmt::Visitor<Result<(), SingleError>> for Resolver {
         self.resolve_statement(&stmt.body)?;
 
         Ok(())
+    }
+}
+
+fn is_literal_nil(expr: &Expr) -> bool {
+    match expr {
+        Expr::Literal(literal) => match literal.value {
+            Literal::Nil => true,
+            _ => false,
+        },
+        _ => false,
     }
 }
 
