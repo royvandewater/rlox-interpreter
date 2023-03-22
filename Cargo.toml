@@ -7,9 +7,9 @@ edition = "2021"
 
 [dependencies]
 lazy_static = "1.4.0"
-rust_decimal = "1.28"
+rust_decimal = "1.29"
 
 [build-dependencies]
-anyhow = "1.0.69"
+anyhow = "1.0.70"
 convert_case = "0.6.0"
-genco = "0.17.3"
+genco = "0.17.5"
