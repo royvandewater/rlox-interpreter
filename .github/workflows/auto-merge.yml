@@ -18,6 +18,8 @@ jobs:
         run: cargo build --verbose
       - name: Run tests
         run: cargo test --verbose
+      - name: Run E2E tests
+        run: ./test.sh
       - name: Dependabot metadata
         id: metadata
         uses: dependabot/fetch-metadata@v1.1.1
