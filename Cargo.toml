@@ -10,6 +10,6 @@ lazy_static = "1.5.0"
 rust_decimal = "1.38"
 
 [build-dependencies]
-anyhow = "1.0.99"
+anyhow = "1.0.100"
 convert_case = "0.8.0"
 genco = "0.18.1"
