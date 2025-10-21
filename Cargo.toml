@@ -12,4 +12,4 @@ rust_decimal = "1.39"
 [build-dependencies]
 anyhow = "1.0.100"
 convert_case = "0.8.0"
-genco = "0.18.1"
+genco = "0.19.0"
